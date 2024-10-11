@@ -2867,6 +2867,7 @@ void Item_sum_min_max::reset_field()
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
   }
 
