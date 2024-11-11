@@ -150,6 +150,9 @@ class sp_name;
 class sp_instr;
 class sp_pcontext;
 class sp_variable;
+class sp_pcursor;
+class sp_record;
+class sp_assoc_array;
 class sp_expr_lex;
 class sp_assignment_lex;
 class partition_info;
@@ -3838,6 +3841,9 @@ public:
   sp_name *make_sp_name(THD *thd, const Lex_ident_sys_st &name);
   sp_name *make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
                                   const Lex_ident_sys_st &name2);
+  sp_name *make_sp_name_no_error(THD *thd, const Lex_ident_sys_st &name);
+  sp_name *make_sp_name_no_error(THD *thd, const Lex_ident_sys_st &name1,
+                                           const Lex_ident_sys_st &name2);
   sp_name *make_sp_name_package_routine(THD *thd,
                                         const Lex_ident_sys_st &name);
   sp_lex_local *package_routine_start(THD *thd,
@@ -3848,6 +3854,14 @@ public:
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
                                      const Sp_handler *sph,
                                      enum_sp_aggregate_type agg_type);
+  sp_package *find_package_spec_with_error(THD *thd,
+                                const Database_qualified_name &pkg_name);
+  sp_package *find_package_spec_with_error(THD *thd,
+                                           const Lex_ident_sys_st &pkg_name);
+  sp_package *find_package_spec(THD *thd,
+                                const Database_qualified_name &pkg_name);
+  sp_package *find_package_spec(THD *thd,
+                                const Lex_ident_sys_st &pkg_name);
   bool sp_body_finalize_routine(THD *);
   bool sp_body_finalize_trigger(THD *);
   bool sp_body_finalize_event(THD *);
@@ -3881,6 +3895,57 @@ public:
     sp_pcontext *not_used_ctx;
     return find_variable(name, &not_used_ctx, rh);
   }
+  sp_variable *find_package_public_variable(const Database_qualified_name
+                                              &pkg_name,
+                                            const LEX_CSTRING &name,
+                                            sp_package **spec);
+  sp_variable *find_package_public_variable(const Lex_ident_sys_st &pkg_name,
+                                            const LEX_CSTRING &name,
+                                            sp_package **spec);
+  sp_variable *find_package_public_variable(const Lex_ident_cli_st &pkg_name,
+                                            const LEX_CSTRING &name,
+                                            sp_package **spec)
+  {
+    Lex_ident_sys a(thd, &pkg_name);
+    return find_package_public_variable(a, name, spec);
+  }
+  sp_record *find_record(const LEX_CSTRING *name) const;
+  sp_assoc_array *find_assoc_array(const LEX_CSTRING *name) const;
+  bool sp_package_public_type(THD *thd,
+                       sp_package *pkg,
+                       const Lex_ident_sys_st &type_name,
+                       Lex_field_type_st *type);
+  bool sp_package_public_type(THD *thd,
+                       const Lex_ident_sys_st &pkg_name,
+                       const Lex_ident_sys_st &type_name,
+                       Lex_field_type_st *type);
+  bool sp_package_public_type(THD *thd,
+                       const Lex_ident_cli_st &pkg_name,
+                       const Lex_ident_cli_st &type_name,
+                       Lex_field_type_st *type)
+  {
+    Lex_ident_sys a(thd, &pkg_name), b(thd, &type_name);
+    return sp_package_public_type(thd, a, b, type);
+  }
+  bool sp_package_public_type(THD *thd,
+                       const Lex_ident_cli_st &schema_name,
+                       const Lex_ident_cli_st &pkg_name,
+                       const Lex_ident_cli_st &type_name,
+                       Lex_field_type_st *type);
+  bool sp_package_public_type_with_error(THD *thd,
+                       const Lex_ident_sys_st &pkg_name,
+                       const Lex_ident_sys_st &type_name,
+                       Lex_field_type_st *type);
+  bool sp_package_public_type_with_error(THD *thd,
+                       const Lex_ident_sys_st &schema_name,
+                       const Lex_ident_sys_st &pkg_name,
+                       const Lex_ident_sys_st &type_name,
+                       Lex_field_type_st *type);
+  bool sp_type_constructor_finalize(THD *thd,
+                                  const Lex_field_type_st &type,
+                                  List<Item> *args,
+                                  const Lex_ident_sys& qname,
+                                  Item **item);
   bool set_variable(const Lex_ident_sys_st *name, Item *item,
                     const LEX_CSTRING &expr_str);
   bool set_variable(const Lex_ident_sys_st *name1,
@@ -3909,12 +3974,22 @@ public:
   bool sp_set_assoc_array_copy_key(LEX *sub_lex);
 
   Item *sp_get_assoc_array_method(THD *thd,
-                                  const Lex_ident_cli_st *ca,
-                                  const Lex_ident_cli_st *cb,
+                                  const sp_name &pkg_name,
+                                  const Lex_ident_cli_st *name,
+                                  const Lex_ident_cli_st *method_name,
+                                  List<Item> *args);
+  Item *sp_get_assoc_array_method(THD *thd,
+                                  const Lex_ident_cli_st *name,
+                                  const Lex_ident_cli_st *method_name,
+                                  List<Item> *args);
+  Item *sp_get_assoc_array_method(THD *thd,
+                                  const sp_name &pkg_name,
+                                  const Lex_ident_sys_st *name,
+                                  const Lex_ident_sys_st *method_name,
                                   List<Item> *args);
   Item *sp_get_assoc_array_method(THD *thd,
                                   Item_splocal* array,
-                                  const Lex_ident_cli_st *method_name,
+                                  const LEX_CSTRING &method_name,
                                   List<Item> *args);
   Item *sp_get_assoc_array_key(THD *thd, Item_splocal* array,
                                List<Item> *args, bool is_first);
@@ -3987,8 +4062,30 @@ public:
                          class sp_lex_cursor *cursor_stmt,
                          sp_pcontext *param_ctx, bool add_cpush_instr);
 
+  const sp_pcursor *find_cursor(const LEX_CSTRING *name,
+                                uint *offset,
+                                sp_pcontext **ctx,
+                                const Sp_rcontext_handler **rh);
+  const sp_pcursor *find_package_public_cursor(THD *thd,
+                                            const sp_name &pkg_name,
+                                            const LEX_CSTRING *name,
+                                            uint *offset,
+                                            sp_pcontext **ctx,
+                                            const Sp_rcontext_handler **rh);
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                       List<sp_assignment_lex> *parameters);
+  bool sp_open_cursor(THD *thd, const sp_name &pkg_name,
+                      const LEX_CSTRING *name,
+                      List<sp_assignment_lex> *parameters);
+  bool sp_close_cursor(THD *thd, const sp_name &pkg_name,
+                       const LEX_CSTRING *name);
+  bool sp_close_cursor(THD *thd, const LEX_CSTRING *name);
+
+  sp_condition_value *find_declared_or_predefined_condition(THD *thd,
+                                                const LEX_CSTRING *name) const;
+  sp_condition_value *find_package_public_condition(THD *thd,
+                                              const sp_name &pkg_name,
+                                              const LEX_CSTRING *name);
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 
@@ -4098,28 +4195,54 @@ public:
   Item *create_item_ident(THD *thd,
                           const Lex_ident_cli_st *ca,
                           const Lex_ident_cli_st *cb,
-                          const Lex_ident_cli_st *cc)
-  {
-    Lex_ident_sys b(thd, cb), c(thd, cc);
-    if (b.is_null() || c.is_null())
-      return NULL;
-    if (ca->pos() == cb->pos())  // SELECT .t1.col1
-    {
-      DBUG_ASSERT(ca->length == 0);
-      Lex_ident_sys none;
-      return create_item_ident(thd, &none, &b, &c);
-    }
-    Lex_ident_sys a(thd, ca);
-    return a.is_null() ? NULL : create_item_ident(thd, &a, &b, &c);
-  }
+                          const Lex_ident_cli_st *cc);
+  
+  Item *create_item_ident(THD *thd,
+                          const Lex_ident_sys_st *a,
+                          const Lex_ident_sys_st *b,
+                          const Lex_ident_sys_st *c,
+                          const Lex_ident_sys_st *d);
+  
+  Item *create_item_ident(THD *thd,
+                          const Lex_ident_cli_st *ca,
+                          const Lex_ident_cli_st *cb,
+                          const Lex_ident_cli_st *cc,
+                          const Lex_ident_cli_st *cd);
 
   Item_splocal *create_item_spvar_assoc_array_element(THD *thd,
                                                const Lex_ident_sys_st *ca,
+                                               List<Item> *args);
+  Item_splocal *create_item_spvar_assoc_array_element(THD *thd,
+                                              const Lex_ident_cli_st *var_ident,
+                                              sp_variable *spv,
+                                              const Sp_rcontext_handler *rh,
+                                              List<Item> *args)
+  {
+    Lex_ident_sys var(thd, var_ident);
+    if (var.is_null())
+      return NULL;
+    return create_item_spvar_assoc_array_element(thd, &var, spv, rh, args);
+  }
+  Item_splocal *create_item_spvar_assoc_array_element(THD *thd,
+                                              const Lex_ident_sys_st *var_ident,
+                                              sp_variable *spv,
+                                              const Sp_rcontext_handler *rh,
                                                List<Item> *args);
   Item_splocal *create_item_spvar_assoc_array_element_field(THD *thd,
                                                const Lex_ident_sys_st *ca,
                                                List<Item> *item_list,
                                                const Lex_ident_sys_st *cb);
+  Item_splocal *create_item_spvar_assoc_array_element_field(THD *thd,
+                                               const sp_name& pkg_name,
+                                               const Lex_ident_cli_st *var_name,
+                                               List<Item> *item_list,
+                                               const Lex_ident_sys_st *field);
+  Item_splocal *create_item_spvar_assoc_array_element_field(THD *thd,
+                                            const Lex_ident_sys_st *var_ident,
+                                            sp_variable *spv,
+                                            const Sp_rcontext_handler *rh,
+                                            List<Item> *item_list,
+                                            const Lex_ident_sys_st *field);
   /*
     Create an item for "NEXT VALUE FOR sequence_name"
   */
@@ -4221,7 +4344,9 @@ public:
 
   /*
     Create a my_var instance for a ROW field variable that was used
-    as an OUT SP parameter: CALL p1(var.field);
+    as an OUT SP parameter: CALL p1(var.field); or
+    Create a my_var instance for a package public variable that was
+    used as an OUT SP parameter: CALL p1(pkg.var);
       @param THD        - THD, for mem_root
       @param var_name   - the variable name
       @param field_name - the variable field name
@@ -4229,8 +4354,26 @@ public:
   my_var *create_outvar(THD *thd,
                         const LEX_CSTRING *var_name,
                         const LEX_CSTRING *field_name);
+  
+  /*
+    Create a my_var instance for a package public ROW field variable
+    that was used as an OUT SP parameter: CALL p1(pkg.var);
+      @param THD        - THD, for mem_root
+      @param pkg_name   - the package name
+      @param var_name   - the variable name
+      @param field_name - the variable field name
+  */
+  my_var *create_outvar(THD *thd,
+                        const LEX_CSTRING *pkg_name,
+                        const LEX_CSTRING *var_name,
+                        const LEX_CSTRING *field_name);
 
   my_var *create_outvar(THD *thd,
+                        const LEX_CSTRING *name,
+                        Item *key);
+  
+  my_var *create_outvar(THD *thd,
+                        const LEX_CSTRING *pkg_name,
                         const LEX_CSTRING *name,
                         Item *key);
 
@@ -4245,7 +4388,13 @@ public:
   // PLSQL: cursor%ISOPEN etc
   Item *make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
                                     plsql_cursor_attr_t attr);
-
+  // PLSQL: pkg.cursor%ISOPEN etc
+  Item *make_item_plsql_cursor_attr(THD *thd, const sp_name &pkg_name,
+                                    const LEX_CSTRING *name,
+                                    plsql_cursor_attr_t attr);
+  Item *make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+                                    plsql_cursor_attr_t attr,
+                                    uint offset, const Sp_rcontext_handler *rh);
   // For "SELECT @@var", "SELECT @@var.field"
   Item *make_item_sysvar(THD *thd,
                          enum_var_type type,
@@ -4347,11 +4496,13 @@ public:
                                        const LEX_CSTRING *index,
                                        const Lex_for_loop_bounds_st &bounds);
   sp_variable *sp_add_for_loop_cursor_variable(THD *thd,
-                                               const LEX_CSTRING *name,
-                                               const class sp_pcursor *cur,
-                                               uint coffset,
-                                               sp_assignment_lex *param_lex,
-                                               Item_args *parameters);
+                                          const LEX_CSTRING *name,
+                                          const class sp_pcursor *cur,
+                                          uint coffset,
+                                          sp_pcontext *cursor_ctx,
+                                          const Sp_rcontext_handler *cursor_rh,
+                                          sp_assignment_lex *param_lex,
+                                          Item_args *parameters);
   bool sp_for_loop_implicit_cursor_statement(THD *thd,
                                              Lex_for_loop_bounds_st *bounds,
                                              sp_lex_cursor *cur);
@@ -4557,6 +4708,8 @@ public:
     return check_create_options(create_info);
   }
   bool sp_add_cfetch(THD *thd, const LEX_CSTRING *name);
+  bool sp_add_cfetch(THD *thd, const sp_name &pkg_name,
+                     const LEX_CSTRING *name);
   bool sp_add_agg_cfetch();
 
   bool set_command_with_check(enum_sql_command command,
@@ -4892,6 +5045,8 @@ public:
   bool stmt_alter_procedure_start(sp_name *name);
 
   sp_condition_value *stmt_signal_value(const Lex_ident_sys_st &ident);
+  sp_condition_value *stmt_signal_value(const sp_name &pkg_ident,
+                                        const Lex_ident_sys_st &ident);
 
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
   Column_definition *assoc_array_def_init(THD *thd,

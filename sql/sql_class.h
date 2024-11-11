@@ -8385,6 +8385,7 @@ public:
 
 class ErrConvDQName: public ErrConv
 {
+protected:
   const Database_qualified_name *m_name;
 public:
   ErrConvDQName(const Database_qualified_name *name)
@@ -8397,6 +8398,28 @@ public:
     return {err_buffer, length};
   }
 };
+
+
+class ErrConvFDQName: public ErrConvDQName
+{
+protected:
+  const LEX_CSTRING *m_field;
+public:
+  ErrConvFDQName(const Database_qualified_name *name, const LEX_CSTRING *field)
+   :ErrConvDQName(name), m_field(field)
+  { }
+  LEX_CSTRING lex_cstring() const override
+  {
+    size_t length= m_name->to_identifier_chain2().make_qname(err_buffer,
+                                                           sizeof(err_buffer));
+    err_buffer[length++]= '.';
+    strncpy(err_buffer + length, m_field->str, m_field->length);
+    length+= m_field->length;
+    err_buffer[length]= 0;
+    return {err_buffer, length};
+  }
+};
+
 
 class Type_holder: public Sql_alloc,
                    public Item_args,

@@ -30,6 +30,7 @@
 
 Sp_rcontext_handler_local sp_rcontext_handler_local;
 Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+Sp_rcontext_handler_package_spec sp_rcontext_handler_package_spec;
 
 sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
 {
@@ -40,6 +41,38 @@ sp_rcontext *Sp_rcontext_handler_package_body::get_rcontext(sp_rcontext *ctx) co
 {
   return ctx->m_sp->m_parent->m_rcontext;
 }
+
+
+sp_rcontext *
+Sp_rcontext_handler_package_spec::get_rcontext(sp_rcontext *ctx) const
+{
+  DBUG_ASSERT(ctx && ctx->m_sp);
+  sp_package *spec= ctx->m_sp->get_spec();
+  if (!spec || spec->instantiate_if_needed(current_thd))
+    return NULL;
+
+  return spec->m_rcontext;
+}
+
+
+sp_rcontext *
+Sp_rcontext_handler_package_public::get_rcontext(sp_rcontext *ctx) const
+{
+  DBUG_ASSERT(m_package);
+  if (m_package->instantiate_if_needed(current_thd))
+    return NULL;
+  
+  /*
+    Instantiate the package body too to run the package body initialization
+    block, if it exists.
+  */
+  if (m_package->m_body_package &&
+      m_package->m_body_package->instantiate_if_needed(current_thd))
+    return NULL;
+
+  return m_package->m_rcontext;
+}
+
 
 const LEX_CSTRING *Sp_rcontext_handler_local::get_name_prefix() const
 {
@@ -52,6 +85,23 @@ const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
                            {STRING_WITH_LEN("PACKAGE_BODY.")};
   return &sp_package_body_variable_prefix_clex_str;
 }
+
+
+const LEX_CSTRING *Sp_rcontext_handler_package_spec::get_name_prefix() const
+{
+  static const LEX_CSTRING sp_package_body_variable_prefix_clex_str=
+                           {STRING_WITH_LEN("PACKAGE_SPEC.")};
+  return &sp_package_body_variable_prefix_clex_str;
+}
+
+
+const LEX_CSTRING *Sp_rcontext_handler_package_public::get_name_prefix() const
+{
+  static const LEX_CSTRING sp_package_body_variable_prefix_clex_str=
+                           {STRING_WITH_LEN("PACKAGE_PUBLIC.")};
+  return &sp_package_body_variable_prefix_clex_str;
+}
+
 
 
 ///////////////////////////////////////////////////////////////////////////

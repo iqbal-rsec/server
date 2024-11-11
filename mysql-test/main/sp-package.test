@@ -219,3 +219,33 @@ DROP TABLE t1;
 --echo #
 --echo # End of 11.7 tests
 --echo #
+
+--echo #
+--echo # Start of public objects tests
+--echo #
+
+--echo #
+--echo # Public package variables
+--echo #
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE OR REPLACE PACKAGE pkg
+  DECLARE a INT DEFAULT 11;
+  DECLARE b INT DEFAULT 10;
+  DECLARE d ROW (a INT, b DOUBLE) DEFAULT ROW(60,26);
+  PROCEDURE p1();
+  PROCEDURE p2();
+  PROCEDURE p3();
+END;
+/
+DELIMITER ;/
+
+--error ER_UNKNOWN_TABLE
+SELECT pkg.a;
+--error ER_UNKNOWN_TABLE
+SELECT pkg.d.a;
+
+
+--echo #
+--echo # End of public objects tests
+--echo #

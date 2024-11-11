@@ -197,3 +197,28 @@ DROP TABLE t1;
 #
 # End of 11.7 tests
 #
+#
+# Start of public objects tests
+#
+#
+# Public package variables
+#
+CREATE OR REPLACE PACKAGE pkg
+DECLARE a INT DEFAULT 11;
+DECLARE b INT DEFAULT 10;
+DECLARE d ROW (a INT, b DOUBLE) DEFAULT ROW(60,26);
+PROCEDURE p1();
+PROCEDURE p2();
+PROCEDURE p3();
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DECLARE a INT DEFAULT 11;
+DECLARE b INT DEFAULT 10;
+DECLARE d ROW (a INT, b D...' at line 2
+SELECT pkg.a;
+ERROR 42S02: Unknown table 'pkg' in SELECT
+SELECT pkg.d.a;
+ERROR 42S02: Unknown table 'pkg.d' in SELECT
+#
+# End of public objects tests
+#

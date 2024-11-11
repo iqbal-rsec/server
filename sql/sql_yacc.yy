@@ -220,7 +220,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
                     Lex_exact_charset_extended_collation_attrs;
   Lex_extended_collation_st Lex_extended_collation;
   Lex_dyncol_type_st Lex_dyncol_type;
-  Lex_for_loop_st for_loop;
+  Lex_for_loop_st *for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
   Lex_trim_st trim;
   Json_table_column::On_response json_on_response;
@@ -1455,6 +1455,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <spvar_definition> assoc_array_table_types
 %type <column_definition> assoc_array_index_type
 %type <Lex_field_type> field_type_all_with_record assoc_array_index_types
+                       field_type_public
 %endif
 
 %type <ident_sys_ptr> opt_result_field
@@ -1605,7 +1606,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %ifdef ORACLE
 %type <item> named_expr named_expr_conflict
-%type <item_list> named_expr_list
+%type <item_list> named_expr_list named_expr_list_conflict opt_named_expr_list
 %endif
 
 %type <sp_cursor_stmt>
@@ -1996,6 +1997,10 @@ rule:
         sp_package_function_body
         sp_package_procedure_body
 
+%type <spblock>
+        package_specification_declare_section
+        package_specification_declare_section_list
+        package_specification_item_declaration
 
 %ifdef MARIADB
 %type <NONE> sp_tail_standalone
@@ -2026,6 +2031,7 @@ rule:
 %type <spblock> sp_decl_variable_list_anchored
 %type <spblock> sp_decl_non_handler
 %type <spblock> sp_decl_non_handler_list
+%type <spblock> sp_decl_non_handler_no_cond
 %type <spblock> sp_decl_handler
 %type <spblock> sp_decl_handler_list
 %type <spblock> opt_sp_decl_handler_list
@@ -3584,6 +3590,21 @@ rec_field_definition_list:
 rec_type_body:
           '(' rec_field_definition_list ')' { $$= $2; }
         ;
+
+field_type_public:
+          sp_decl_ident '.' ident
+          {
+            if (unlikely(Lex->sp_package_public_type_with_error(thd, $1,
+                                                                $3, &$$)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident
+          {
+            if (unlikely(Lex->sp_package_public_type_with_error(thd, $1,
+                                                                $3, $5, &$$)))
+              MYSQL_YYABORT;
+          }
+        ;
 %endif
 
 sp_decl_idents_init_vars:
@@ -3592,6 +3613,7 @@ sp_decl_idents_init_vars:
             Lex->sp_variable_declarations_init(thd, $1);
           }
         ;
+
 
 sp_decl_variable_list:
           sp_decl_idents_init_vars
@@ -3620,6 +3642,23 @@ sp_decl_variable_list:
             $$.init_using_vars($1);
           }
         | sp_decl_variable_list_anchored
+%ifdef ORACLE
+        | sp_decl_idents_init_vars
+          field_type_public
+          {
+            Lex->last_field->set_attributes(thd, $2,
+                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
+          }
+          sp_opt_default
+          {
+            if (unlikely(Lex->sp_variable_declarations_finalize(thd, $1,
+                                                                &Lex->last_field[0],
+                                                                $4.expr,
+                                                                $4.expr_str)))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
+          }
+%endif
         ;
 
 sp_decl_handler:
@@ -3755,10 +3794,32 @@ sp_hcond:
           }
         | ident /* CONDITION name */
           {
-            $$= Lex->spcont->find_declared_or_predefined_condition(thd, &$1);
+            $$= Lex->find_declared_or_predefined_condition(thd, &$1);
             if (unlikely($$ == NULL))
               my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
           }
+%ifdef ORACLE
+        | ident '.' ident /* CONDITION name */
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $1);
+            if (unlikely(spn == NULL))
+              MYSQL_YYABORT;
+
+            $$= Lex->find_package_public_condition(thd, *spn, &$3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | ident '.' ident '.' ident /* CONDITION name */
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $1, $3);
+            if (unlikely(spn == NULL))
+              MYSQL_YYABORT;
+
+            $$= Lex->find_package_public_condition(thd, *spn, &$5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+%endif
         | SQLWARNING_SYM /* SQLSTATEs 01??? */
           {
             $$= new (thd->mem_root) sp_condition_value(sp_condition_value::WARNING);
@@ -3813,6 +3874,26 @@ signal_value:
             if (!($$= Lex->stmt_signal_value($1)))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | ident '.' ident
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $1);
+            if (unlikely(spn == NULL))
+              MYSQL_YYABORT;
+
+            if (!($$= Lex->stmt_signal_value(*spn, $3)))
+              MYSQL_YYABORT;
+          }
+        | ident '.' ident '.' ident
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $1, $3);
+            if (unlikely(spn == NULL))
+              MYSQL_YYABORT;
+
+            if (!($$= Lex->stmt_signal_value(*spn, $5)))
+              MYSQL_YYABORT;
+          }
+%endif
         | sqlstate
           { $$= $1; }
         ;
@@ -4385,6 +4466,26 @@ sp_proc_stmt_open:
             if (unlikely(Lex->sp_open_cursor(thd, &$2, $3)))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | OPEN_SYM ident '.' ident opt_parenthesized_cursor_actual_parameters
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $2);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(Lex->sp_open_cursor(thd, *spn, &$4, $5)))
+              MYSQL_YYABORT;
+          }
+        | OPEN_SYM ident '.' ident '.' ident opt_parenthesized_cursor_actual_parameters
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $2, $4);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(Lex->sp_open_cursor(thd, *spn, &$6, $7)))
+              MYSQL_YYABORT;
+          }
+%endif
         ;
 
 sp_proc_stmt_fetch_head:
@@ -4398,11 +4499,67 @@ sp_proc_stmt_fetch_head:
             if (unlikely(Lex->sp_add_cfetch(thd, &$3)))
               MYSQL_YYABORT;
           }
-       | FETCH_SYM NEXT_SYM FROM ident INTO
+        | FETCH_SYM NEXT_SYM FROM ident INTO
           {
             if (unlikely(Lex->sp_add_cfetch(thd, &$4)))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | FETCH_SYM ident '.' ident INTO
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $2);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(Lex->sp_add_cfetch(thd, *spn, &$4)))
+              MYSQL_YYABORT;
+          }
+        | FETCH_SYM FROM ident '.' ident INTO
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $3);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(Lex->sp_add_cfetch(thd, *spn, &$5)))
+              MYSQL_YYABORT;
+          }
+        | FETCH_SYM NEXT_SYM FROM ident '.' ident INTO
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $4);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(Lex->sp_add_cfetch(thd, *spn, &$6)))
+              MYSQL_YYABORT;
+          }
+        | FETCH_SYM ident '.' ident '.' ident INTO
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $2, $4);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(Lex->sp_add_cfetch(thd, *spn, &$6)))
+              MYSQL_YYABORT;
+          }
+        | FETCH_SYM FROM ident '.' ident '.' ident INTO
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $3, $5);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+
+            if (unlikely(Lex->sp_add_cfetch(thd, *spn, &$7)))
+              MYSQL_YYABORT;
+          }
+        | FETCH_SYM NEXT_SYM FROM ident '.' ident '.' ident INTO
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $4, $6);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+
+            if (unlikely(Lex->sp_add_cfetch(thd, *spn, &$8)))
+              MYSQL_YYABORT;
+          }
+%endif
         ;
 
 sp_proc_stmt_fetch:
@@ -4417,19 +4574,29 @@ sp_proc_stmt_fetch:
 sp_proc_stmt_close:
           CLOSE_SYM ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint offset;
-            sp_instr_cclose *i;
-
-            if (unlikely(!lex->spcont->find_cursor(&$2, &offset, false)))
-              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $2.str));
-            i= new (thd->mem_root)
-              sp_instr_cclose(sp->instructions(), lex->spcont,  offset);
-            if (unlikely(i == NULL) ||
-                unlikely(sp->add_instr(i)))
+            if (Lex->sp_close_cursor(thd, &$2))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | CLOSE_SYM ident '.' ident
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $2);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (Lex->sp_close_cursor(thd, *spn, &$4))
+              MYSQL_YYABORT;
+          }
+        | CLOSE_SYM ident '.' ident '.' ident
+          {
+            sp_name *spn= Lex->make_sp_name(thd, $2, $4);
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (Lex->sp_close_cursor(thd, *spn, &$6))
+              MYSQL_YYABORT;
+          }
+%endif
         ;
 
 sp_fetch_list:
@@ -4644,7 +4811,12 @@ opt_sp_for_loop_direction:
 sp_for_loop_index_and_bounds:
           ident_for_loop_index sp_for_loop_bounds
           {
-            if (unlikely(Lex->sp_for_loop_declarations(thd, &$$, &$1, $2)))
+            $$= (Lex_for_loop_st*) alloc_root(thd->mem_root, sizeof(*$$));
+            if (unlikely(!$$))
+              MYSQL_YYABORT;
+            $$->init();
+
+            if (unlikely(Lex->sp_for_loop_declarations(thd, $$, &$1, $2)))
               MYSQL_YYABORT;
           }
         ;
@@ -4724,17 +4896,17 @@ sp_labeled_control:
           {
             if (unlikely(Lex->sp_push_loop_label(thd, &$1))) // The inner WHILE block
               MYSQL_YYABORT;
-            if (unlikely(Lex->sp_for_loop_condition_test(thd, $4)))
+            if (unlikely(Lex->sp_for_loop_condition_test(thd, *$4)))
               MYSQL_YYABORT;
           }
           for_loop_statements
           {
-            if (unlikely(Lex->sp_for_loop_finalize(thd, $4)))
+            if (unlikely(Lex->sp_for_loop_finalize(thd, *$4)))
               MYSQL_YYABORT;
           }
           pop_sp_loop_label                    // The inner WHILE block
           {
-            if (unlikely(Lex->sp_for_loop_outer_block_finalize(thd, $4)))
+            if (unlikely(Lex->sp_for_loop_outer_block_finalize(thd, *$4)))
               MYSQL_YYABORT;
           }
         | sp_control_label REPEAT_SYM
@@ -4776,15 +4948,15 @@ sp_unlabeled_control:
           {
             if (unlikely(Lex->sp_push_loop_empty_label(thd))) // The inner WHILE block
               MYSQL_YYABORT;
-            if (unlikely(Lex->sp_for_loop_condition_test(thd, $3)))
+            if (unlikely(Lex->sp_for_loop_condition_test(thd, *$3)))
               MYSQL_YYABORT;
           }
           for_loop_statements
           {
-            if (unlikely(Lex->sp_for_loop_finalize(thd, $3)))
+            if (unlikely(Lex->sp_for_loop_finalize(thd, *$3)))
               MYSQL_YYABORT;
             Lex->sp_pop_loop_empty_label(thd); // The inner WHILE block
-            if (unlikely(Lex->sp_for_loop_outer_block_finalize(thd, $3)))
+            if (unlikely(Lex->sp_for_loop_outer_block_finalize(thd, *$3)))
               MYSQL_YYABORT;
           }
         | REPEAT_SYM
@@ -6520,7 +6692,7 @@ field_type_all_with_record:
             sp_record *sprec = NULL;
             if (Lex->spcont)
             {
-              sprec= Lex->spcont->find_record(&$1, false);
+              sprec= Lex->find_record(&$1);
               if (sprec) {
                 $$.set(&type_handler_row, NULL);
                 Lex->last_field->set_attr_const_void_ptr(0, sprec);
@@ -6547,14 +6719,14 @@ field_type_all_with_composites:
             sp_assoc_array *spassoc= NULL;
             if (Lex->spcont)
             {
-              sprec= Lex->spcont->find_record(&$1, false);
+              sprec= Lex->find_record(&$1);
               if (sprec) {
                 $$.set(&type_handler_row, NULL);
                 Lex->last_field->set_attr_const_void_ptr(0, sprec);
               }
               else
               {
-                spassoc= Lex->spcont->find_assoc_array(&$1, false);
+                spassoc= Lex->find_assoc_array(&$1);
                 if (spassoc) {
                   $$.set(&type_handler_assoc_array, NULL);
                   Lex->last_field->set_attr_const_void_ptr(0, spassoc);
@@ -10192,6 +10364,28 @@ explicit_cursor_attr:
             if (unlikely(!($$= Lex->make_item_plsql_cursor_attr(thd, &$1, $3))))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | ident_cli '.' ident PERCENT_ORACLE_SYM plsql_cursor_attr
+          {
+            sp_name *spn= Lex->make_sp_name(thd, Lex_ident_sys(thd, &$1));
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(!($$= Lex->make_item_plsql_cursor_attr(thd, *spn,
+                                                                &$3, $5))))
+              MYSQL_YYABORT;
+          }
+        | ident_cli '.' ident_cli '.' ident PERCENT_ORACLE_SYM plsql_cursor_attr
+          {
+            sp_name *spn= Lex->make_sp_name(thd, Lex_ident_sys(thd, &$1), Lex_ident_sys(thd, &$3));
+            if (unlikely(!spn))
+              MYSQL_YYABORT;
+            
+            if (unlikely(!($$= Lex->make_item_plsql_cursor_attr(thd, *spn,
+                                                                &$5, $7))))
+              MYSQL_YYABORT;
+          }
+%endif
         ;
 
 
@@ -11010,6 +11204,7 @@ function_call_generic:
             sp_record* rec= NULL;
             sp_assoc_array* assoc= NULL;
             sp_variable *spv= NULL;
+            const Sp_rcontext_handler *rh;
 
             bool allow_field_accessor= false;
 
@@ -11037,13 +11232,11 @@ function_call_generic:
             {
               // Found a constructor with a proper argument count
             }
-            else if (Lex->spcont &&
-                    (rec = Lex->spcont->find_record(&$1, false)))
+            else if ((rec = Lex->find_record(&$1)))
             {
               item= new (thd->mem_root) Item_row(thd, *$4);
             }
-            else if (Lex->spcont &&
-                    (assoc = Lex->spcont->find_assoc_array(&$1, false)))
+            else if ((assoc = Lex->find_assoc_array(&$1)))
             {
               if (unlikely($4 && Lex->sp_check_assoc_array_args($1, *$4)))
                 MYSQL_YYABORT;
@@ -11053,8 +11246,7 @@ function_call_generic:
               else
                 item= new (thd->mem_root) Item_assoc_array(thd, *$4);
             }
-            else if (Lex->spcont &&
-                    (spv= Lex->spcont->find_variable(&$1, false)) &&
+            else if ((spv= Lex->find_variable(&$1, &rh)) &&
                     spv->field_def.is_assoc_array())
             {
               if ($6)
@@ -11116,16 +11308,43 @@ function_call_generic:
                                                                      $1, $3)))
               MYSQL_YYABORT;
           }
-        | ident_cli '.' ident_cli '(' opt_expr_list ')'
+        | ident_cli '.' ident_cli '('
+%ifdef MARIADB
+        opt_expr_list
+%else
+        opt_named_expr_list
+%endif
+        ')'
           {
             sp_variable *spv;
-            if (Lex->spcont && (spv= Lex->spcont->find_variable(&$1, false)) &&
-                               spv->field_def.is_assoc_array())
+            const Sp_rcontext_handler *rh= NULL;
+            sp_package *spec;
+            Lex_field_type_st field_type;
+            if ((thd->variables.sql_mode & MODE_ORACLE) &&
+                (spv= Lex->find_variable(&$1, &rh)) &&
+                spv->field_def.is_assoc_array())
             {
               if (unlikely(!($$= Lex->sp_get_assoc_array_method(thd,
                                                                 &$1,
                                                                 &$3,
                                                                 $5))))
+                MYSQL_YYABORT;
+            }
+            else if (!Lex->sp_package_public_type(thd, $1, $3, &field_type))
+            {
+              Lex_ident_cli qname_cli($1.str, $3.str - $1.str + $3.length);
+              Lex_ident_sys qname(thd, &qname_cli);
+              if (unlikely(Lex->sp_type_constructor_finalize(thd, field_type, $5, qname, &$$)))
+                MYSQL_YYABORT;
+            }
+            else if ((spv= Lex->find_package_public_variable($1, $3, &spec)) &&
+                      spv->field_def.is_assoc_array())
+            {
+              if (!($$= Lex->create_item_spvar_assoc_array_element(thd,
+                          &$3,
+                          spv,
+                          new (thd->mem_root) Sp_rcontext_handler_package_public(spec),
+                          $5)))
                 MYSQL_YYABORT;
             }
             else
@@ -11137,11 +11356,90 @@ function_call_generic:
                 MYSQL_YYABORT;
             }
           }
-        | ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list ')'
+%ifdef ORACLE
+        | ident_cli '.' ident_cli '(' opt_named_expr_list ')' '.' ident_sys_alloc
           {
-            if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
+            sp_name *spn= Lex->make_sp_name(thd, Lex_ident_sys(thd, &$1));
+            if (!spn)
+              MYSQL_YYABORT;
+
+            if (!($$= Lex->create_item_spvar_assoc_array_element_field(thd,
+                                *spn,
+                                &$3,
+                                $5,
+                                $8)))
               MYSQL_YYABORT;
           }
+        | ident_cli '.' ident_cli '.' ident_cli '(' opt_named_expr_list ')' '.' ident_sys_alloc
+          {
+            sp_name *spn= Lex->make_sp_name(thd, Lex_ident_sys(thd, &$1),
+                                                 Lex_ident_sys(thd, &$3));
+            if (!spn)
+              MYSQL_YYABORT;
+
+            if (!($$= Lex->create_item_spvar_assoc_array_element_field(thd,
+                                *spn,
+                                &$5,
+                                $7,
+                                $10)))
+              MYSQL_YYABORT;
+          }
+%endif
+        | ident_cli '.' ident_cli '.' ident_cli '('
+%ifdef MARIADB
+          opt_expr_list
+%else
+          opt_named_expr_list
+%endif
+        ')'
+          {
+            sp_variable *spv;
+            sp_package *spec;
+            Lex_field_type_st field_type;
+            sp_name *spn;
+            if ((spv= Lex->find_package_public_variable($1, $3, &spec)) &&
+                spv->field_def.is_assoc_array())
+            {
+              spn= Lex->make_sp_name_no_error(thd, Lex_ident_sys(thd, &$1));
+              if (unlikely(!spn || !($$= Lex->sp_get_assoc_array_method(thd, *spn,
+                                                                        &$3, &$5,
+                                                                        $7))))
+                MYSQL_YYABORT;
+            }
+            else if (!Lex->sp_package_public_type(thd, $1, $3, $5, &field_type))
+            {
+              Lex_ident_cli qname_cli($1.str, $5.str - $1.str + $5.length);
+              Lex_ident_sys qname(thd, &qname_cli);
+              if (unlikely(Lex->sp_type_constructor_finalize(thd, field_type, $7, qname, &$$)))
+                MYSQL_YYABORT;
+            }
+            else if ((spn= Lex->make_sp_name_no_error(thd, Lex_ident_sys(thd, &$1), Lex_ident_sys(thd, &$3))) &&
+                (spv= Lex->find_package_public_variable(*spn, $5, &spec)) &&
+                spv->field_def.is_assoc_array())
+            {
+              if (!($$= Lex->create_item_spvar_assoc_array_element(thd,
+                          &$5,
+                          spv,
+                          new (thd->mem_root) Sp_rcontext_handler_package_public(spec),
+                          $7)))
+                MYSQL_YYABORT;
+            }
+            else if (unlikely(!($$= Lex->make_item_func_call_generic(thd, &$1, &$3, &$5, $7))))
+              MYSQL_YYABORT;
+          }
+%ifdef ORACLE
+        | ident_cli '.' ident_cli '.' ident_cli '.' ident_cli '(' opt_expr_list ')'
+          {
+            sp_name *spn= Lex->make_sp_name(thd, Lex_ident_sys(thd, &$1), Lex_ident_sys(thd, &$3));
+            if (!spn)
+              MYSQL_YYABORT;
+
+            if (unlikely(!($$= Lex->sp_get_assoc_array_method(thd, *spn,
+                                                              &$5, &$7,
+                                                              $9))))
+              MYSQL_YYABORT;
+          }
+%endif
         | ident_cli '.' REPLACE '(' opt_expr_list ')'
           {
             if (unlikely(!($$= Lex->make_item_func_replace(thd, $1, $3, $5))))
@@ -11209,7 +11507,7 @@ opt_udf_expr_list:
         /* empty */     { $$= NULL; }
         | udf_expr_list { $$= $1; }
 %ifdef ORACLE
-        | named_expr_list { $$= $1; }
+        | named_expr_list_conflict { $$= $1; }
 %endif
         ;
 
@@ -13462,6 +13760,18 @@ select_outvar:
             if (unlikely(!($$= Lex->create_outvar(thd, &$1, $3)) && Lex->result))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | ident '.' ident '.' ident
+          {
+            if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3, &$5)) && Lex->result))
+              MYSQL_YYABORT;
+          }
+        | ident '.' ident '(' expr ')'
+          {
+            if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3, $5)) && Lex->result))
+              MYSQL_YYABORT;
+          }
+%endif
         ;
 
 into:
@@ -15990,6 +16300,13 @@ simple_ident:
             if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5))))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | ident_cli '.' ident_cli '.' ident_cli '.' ident_cli
+          {
+            if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5, &$7))))
+              MYSQL_YYABORT;
+          }
+%endif
         | COLON_ORACLE_SYM ident_cli '.' ident_cli
           {
             if (unlikely(!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4))))
@@ -16024,6 +16341,13 @@ simple_ident_nospvar:
             if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5))))
               MYSQL_YYABORT;
           }
+%ifdef ORACLE
+        | ident '.' ident '.' ident '.' ident
+          {
+            if (unlikely(!($$= Lex->create_item_ident(thd, &$1, &$3, &$5, &$7))))
+              MYSQL_YYABORT;
+          }
+%endif
         ;
 
 field_ident:
@@ -19396,9 +19720,9 @@ direct_call_or_assoc_init:
           optionally_qualified_directly_assignable
           {
             sp_variable *spv;
+            const Sp_rcontext_handler *rh= NULL;
             Lex_ident_sys a(thd, &$1->ident);
-            if (Lex->spcont &&
-                (spv= Lex->spcont->find_variable(&a, false)))
+            if ((spv= Lex->find_variable(&a, &rh)))
             {
               if (likely(spv->field_def.is_assoc_array()))
               {
@@ -19563,7 +19887,11 @@ sf_return_type:
 
 
 package_implementation_item_declaration:
-          sp_decl_variable_list ';'
+          sp_decl_non_handler_no_cond ';'
+          {
+            if (unlikely(Lex->sphead->sp_add_instr_cpush_for_cursors(thd, Lex->spcont)))
+              MYSQL_YYABORT;
+          }
         ;
 
 sp_package_function_body:
@@ -19720,7 +20048,6 @@ keyword_directly_assignable:
         | keyword_sp_var_and_label
         | keyword_sp_var_not_label
         | keyword_sysvar_type
-        | FUNCTION_SYM
         | WINDOW_SYM
         ;
 
@@ -19936,7 +20263,13 @@ package_implementation_executable_section:
         | BEGIN_ORACLE_SYM sp_block_statements_and_exceptions END { $$= $2; }
         ;
 
-named_expr_list:
+opt_named_expr_list:
+          _empty            { $$= NULL; }
+        | expr_list
+        | named_expr_list
+        ;
+
+named_expr_list_conflict:
           named_expr_conflict
           {
             $$= new (thd->mem_root) List<Item>;
@@ -19944,7 +20277,22 @@ named_expr_list:
               MYSQL_YYABORT;
             $$->push_back($1, thd->mem_root);
           }
-        | named_expr_list ',' named_expr_conflict
+        | named_expr_list_conflict ',' named_expr_conflict
+          {
+            $1->push_back($3, thd->mem_root);
+            $$= $1;
+          }
+        ;
+
+named_expr_list:
+          named_expr
+          {
+            $$= new (thd->mem_root) List<Item>;
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            $$->push_back($1, thd->mem_root);
+          }
+        | named_expr_list ',' named_expr
           {
             $1->push_back($3, thd->mem_root);
             $$= $1;
@@ -20055,7 +20403,7 @@ package_implementation_routine_definition:
             pkg->m_current_routine= NULL;
             $$.init();
           }
-        | package_specification_element { $$.init(); }
+        | package_specification_routine_declaration { $$.init(); }
         ;
 
 
@@ -20097,18 +20445,30 @@ package_implementation_procedure_body:
           }
         ;
 
-
-opt_package_specification_element_list:
-          _empty
-        | package_specification_element_list
+package_specification_declare_section_list:
+          package_specification_item_declaration
+        | package_specification_declare_section_list
+          package_specification_item_declaration
+          { $$.join($1, $2); }
         ;
 
-package_specification_element_list:
-          package_specification_element
-        | package_specification_element_list package_specification_element
+package_specification_declare_section:
+          _empty { $$.init(); }
+        | package_specification_declare_section_list
         ;
 
-package_specification_element:
+%ifdef ORACLE
+package_specification_item_declaration:
+          package_implementation_item_declaration
+        | package_specification_routine_declaration { $$.init(); }
+        ;
+%else
+        package_specification_item_declaration:
+          package_specification_routine_declaration { $$.init(); }
+        ;
+%endif
+
+package_specification_routine_declaration:
           FUNCTION_SYM package_specification_function ';'
           {
             sp_package *pkg= Lex->get_sp_package();
@@ -20290,12 +20650,17 @@ create_routine:
                                                 Lex->sp_chistics))))
               MYSQL_YYABORT;
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+            Lex->sp_block_init(thd);
           }
           sp_tail_is
-          opt_package_specification_element_list END
+          package_specification_declare_section END
+          {
+            if (unlikely(Lex->sp_block_finalize(thd, $9)))
+              MYSQL_YYABORT;
+          }
           remember_end_opt opt_trailing_sp_name
           {
-            if (unlikely(Lex->create_package_finalize(thd, $5, $12, $11)))
+            if (unlikely(Lex->create_package_finalize(thd, $5, $13, $12)))
               MYSQL_YYABORT;
           }
         | create_or_replace definer_opt sp_handler_package_body
@@ -20443,17 +20808,8 @@ assoc_array_index_type:
           }
         ;
 
-sp_decl_non_handler:
+sp_decl_non_handler_no_cond:
           sp_decl_variable_list
-        | ident_directly_assignable CONDITION_SYM FOR_SYM sp_cond
-          {
-            if (unlikely(Lex->spcont->declare_condition(thd,
-                                                        Lex_ident_column($1),
-                                                        $4)))
-              MYSQL_YYABORT;
-            $$.vars= $$.hndlrs= $$.curs= 0;
-            $$.conds= 1;
-          }
         | ident_directly_assignable EXCEPTION_ORACLE_SYM
           {
             sp_condition_value *spcond= new (thd->mem_root)
@@ -20505,6 +20861,19 @@ sp_decl_non_handler:
           }
         ;
 
+
+sp_decl_non_handler:
+          sp_decl_non_handler_no_cond
+        | ident_directly_assignable CONDITION_SYM FOR_SYM sp_cond
+          {
+            if (unlikely(Lex->spcont->declare_condition(thd,
+                                                        Lex_ident_column($1),
+                                                        $4)))
+              MYSQL_YYABORT;
+            $$.vars= $$.hndlrs= $$.curs= 0;
+            $$.conds= 1;
+          }
+        ;
 
 sp_proc_stmt:
           sp_labeled_block

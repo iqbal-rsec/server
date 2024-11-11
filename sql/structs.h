@@ -37,6 +37,8 @@ class Type_handler;
 class Field;
 class Index_statistics;
 struct Lex_ident_cli_st;
+class sp_pcontext;
+class Sp_rcontext_handler;
 
 class THD;
 
@@ -908,6 +910,8 @@ public:
   int m_cursor_offset;
   int8 m_direction;
   bool m_implicit_cursor;
+  sp_pcontext *m_cursor_ctx;
+  const Sp_rcontext_handler *m_cursor_rh;
   void init()
   {
     m_index= 0;
@@ -915,6 +919,8 @@ public:
     m_cursor_offset= 0;
     m_direction= 0;
     m_implicit_cursor= false;
+    m_cursor_ctx= NULL;
+    m_cursor_rh= NULL;
   }
   bool is_for_loop_cursor() const { return m_target_bound == NULL; }
   bool is_for_loop_explicit_cursor() const

@@ -1844,7 +1844,11 @@ sp_rcontext *Item_splocal::get_rcontext(sp_rcontext *local_ctx) const
 
 Item_field *Item_splocal::get_variable(sp_rcontext *ctx) const
 {
-  return get_rcontext(ctx)->get_variable(m_var_idx);
+  sp_rcontext *rctx= get_rcontext(ctx);
+  if (!rctx)
+    return NULL;
+
+  return rctx->get_variable(m_var_idx);
 }
 
 
@@ -1852,6 +1856,9 @@ bool Item_splocal::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
   Item *item= get_variable(thd->spcont);
+  if (!item)
+    return true;
+
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, ref, item);
 }
@@ -1860,7 +1867,7 @@ bool Item_splocal::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont);
 }
@@ -1868,7 +1875,7 @@ Item_splocal::this_item()
 const Item *
 Item_splocal::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont);
 }
@@ -1877,7 +1884,7 @@ Item_splocal::this_item() const
 Item **
 Item_splocal::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_rcontext(thd->spcont)->get_variable_addr(m_var_idx);
 }
@@ -1963,7 +1970,7 @@ CALL p1();
 
 bool Item_splocal::check_cols(uint n)
 {
-  DBUG_ASSERT(m_thd->spcont);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_thd->spcont);
 
   Item_result cmp_type= Type_handler_hybrid_field_type::cmp_type();
   if (cmp_type != ROW_RESULT &&
@@ -1998,7 +2005,7 @@ bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_row_field::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
@@ -2007,7 +2014,7 @@ Item_splocal_row_field::this_item()
 const Item *
 Item_splocal_row_field::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
@@ -2016,7 +2023,7 @@ Item_splocal_row_field::this_item() const
 Item **
 Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   return get_variable(thd->spcont)->addr(m_field_idx);
 }
@@ -2115,7 +2122,7 @@ bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_assoc_array_element::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
   return get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
@@ -2125,7 +2132,7 @@ Item_splocal_assoc_array_element::this_item()
 const Item *
 Item_splocal_assoc_array_element::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
   return get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
@@ -2135,7 +2142,7 @@ Item_splocal_assoc_array_element::this_item() const
 Item **
 Item_splocal_assoc_array_element::this_item_addr(THD *thd, Item **ref)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(m_key->fixed());
   return get_variable(thd->spcont)->element_addr_by_key(m_thd, ref, m_key->val_str());
@@ -2209,7 +2216,7 @@ bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
 Item *
 Item_splocal_assoc_array_element_field::this_item()
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
   Item *element_item= get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
@@ -2220,7 +2227,7 @@ Item_splocal_assoc_array_element_field::this_item()
 const Item *
 Item_splocal_assoc_array_element_field::this_item() const
 {
-  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
   Item *element_item= get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
@@ -2231,7 +2238,7 @@ Item_splocal_assoc_array_element_field::this_item() const
 Item **
 Item_splocal_assoc_array_element_field::this_item_addr(THD *thd, Item **)
 {
-  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT(!m_rcontext_handler->is_local() || m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed());
 
   Item *element_item= get_variable(thd->spcont)->element_by_key(thd, m_key->val_str());
