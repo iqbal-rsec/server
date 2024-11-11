@@ -468,13 +468,16 @@ private:
     Generate a code to set a single cursor parameter variable.
     @param thd          - current thd, for mem_root allocations.
     @param param_spcont - the context of the parameter block
+    @param rh           - the rcontext handler for the parameter block
     @param idx          - the index of the parameter
     @param prm          - the actual parameter (contains information about
                           the assignment source expression Item,
                           its free list, and its LEX)
   */
   bool add_set_cursor_param_variable(THD *thd,
-                                     sp_pcontext *param_spcont, uint idx,
+                                     sp_pcontext *param_spcont,
+                                     const Sp_rcontext_handler *rh,
+                                     uint idx,
                                      sp_assignment_lex *prm)
   {
     DBUG_ASSERT(idx < param_spcont->context_var_count());
@@ -486,7 +489,7 @@ private:
     DBUG_ASSERT(m_thd->free_list == NULL);
     m_thd->free_list= prm->get_free_list();
     if (set_local_variable(thd, param_spcont,
-                           &sp_rcontext_handler_local,
+                           rh,
                            spvar, prm->get_item(), prm, true,
                            prm->get_expr_str()))
       return true;
@@ -510,6 +513,7 @@ private:
     parameters. See also comments to add_open_cursor().
   */
   bool add_set_cursor_param_variables(THD *thd, sp_pcontext *param_spcont,
+                                      const Sp_rcontext_handler *rh,
                                       List<sp_assignment_lex> *parameters)
   {
     DBUG_ASSERT(param_spcont->context_var_count() == parameters->elements);
@@ -517,7 +521,7 @@ private:
     List_iterator<sp_assignment_lex> li(*parameters);
     for (uint idx= 0; (prm= li++); idx++)
     {
-      if (add_set_cursor_param_variable(thd, param_spcont, idx, prm))
+      if (add_set_cursor_param_variable(thd, param_spcont, rh, idx, prm))
         return true;
     }
     return false;
@@ -530,6 +534,7 @@ private:
   */
   bool add_set_for_loop_cursor_param_variables(THD *thd,
                                                sp_pcontext *param_spcont,
+                                               const Sp_rcontext_handler *rh,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
 
@@ -551,6 +556,7 @@ public:
     @param thd          - current thd, for mem_root allocations
     @param spcont       - the context of the cursor
     @param offset       - the offset of the cursor
+    @param rh           - the rcontext handler for the cursor
     @param param_spcont - the context of the cursor parameter block
     @param parameters   - the list of the OPEN actual parameters
 
@@ -561,6 +567,7 @@ public:
   */
   bool add_open_cursor(THD *thd, sp_pcontext *spcont,
                        uint offset,
+                       const Sp_rcontext_handler *rh,
                        sp_pcontext *param_spcont,
                        List<sp_assignment_lex> *parameters);
 
@@ -581,6 +588,8 @@ public:
     @param index      - the loop "index" ROW-type variable
     @param pcursor    - the cursor
     @param coffset    - the cursor offset
+    @param cursor_ctx - the cursor context
+    @param cursor_rh  - the cursor rcontext handler
     @param param_lex  - the LEX that owns Items in "parameters"
     @param parameters - the cursor parameters Item array
     @retval true      - on error (EOM)
@@ -589,6 +598,8 @@ public:
   bool add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                 sp_variable *index,
                                 const sp_pcursor *pcursor, uint coffset,
+                                sp_pcontext *cursor_ctx,
+                                const Sp_rcontext_handler *cursor_rh,
                                 sp_assignment_lex *param_lex,
                                 Item_args *parameters);
   /**
@@ -964,6 +975,12 @@ public:
     return NULL;
   }
 
+  /*
+    Retrieve the package specification that encapsulates this
+    routine.
+  */
+  virtual sp_package *get_spec();
+
   virtual void init_psi_share();
 
 protected:
@@ -1132,6 +1149,7 @@ public:
            m_routine_implementations.push_back(lex, &main_mem_root);
   }
   sp_package *get_package() override { return this; }
+  sp_package *get_spec() override;
   void init_psi_share() override;
   bool is_invoked() const override
   {
@@ -1142,17 +1160,53 @@ public:
     */
     return sp_head::is_invoked() || m_invoked_subroutine_count > 0;
   }
-  sp_variable *find_package_variable(const LEX_CSTRING *name) const
+
+  /*
+    Retreives the parsing context for a package that
+    contains the package variables, types etc
+  */
+  sp_pcontext *get_package_pcontext() const
   {
     /*
       sp_head::m_pcont is a special level for routine parameters.
       Variables declared inside CREATE PACKAGE BODY reside in m_children.at(0).
     */
-    sp_pcontext *ctx= m_pcont->child_context(0);
+    return m_pcont->child_context(0);
+  }
+
+  sp_variable *find_package_variable(const LEX_CSTRING *name) const
+  {
+    sp_pcontext *ctx= get_package_pcontext();
     return ctx ? ctx->find_variable(name, true) : NULL;
   }
+
+  const sp_pcursor *find_package_cursor(const LEX_CSTRING &name, uint *offset)
+  const
+  {
+    sp_pcontext *ctx= get_package_pcontext();
+    return ctx ? ctx->find_cursor(&name, offset, false) : NULL;
+  }
+
+  sp_condition_value *find_package_condition(const LEX_CSTRING &name)
+  const
+  {
+    sp_pcontext *ctx= get_package_pcontext();
+    return ctx ? ctx->find_condition(&name, false) : NULL;
+  }
+
   bool validate_after_parser(THD *thd);
   bool instantiate_if_needed(THD *thd);
+  void set_spec(sp_package *spec)
+  {
+    m_spec= spec;
+  }
+  void set_body(sp_package *body)
+  {
+    m_body_package= body;
+  }
+
+  sp_package *m_spec;
+  sp_package *m_body_package;
 };
 
 

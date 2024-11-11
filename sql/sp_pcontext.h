@@ -653,6 +653,8 @@ public:
   sp_condition_value *find_condition(const LEX_CSTRING *name,
                                      bool current_scope_only) const;
 
+  sp_condition_value *find_predefined_condition(const LEX_CSTRING *name) const;
+
   sp_condition_value *
   find_declared_or_predefined_condition(THD *thd, const LEX_CSTRING *name) const;
 
@@ -808,8 +810,6 @@ private:
   /* Prevent use of these */
   sp_pcontext(const sp_pcontext &);
   void operator=(sp_pcontext &);
-
-  sp_condition_value *find_predefined_condition(const LEX_CSTRING *name) const;
 
 private:
   /// m_max_var_index -- number of variables (including all types of arguments)
