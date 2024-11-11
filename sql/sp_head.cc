@@ -687,7 +687,9 @@ sp_package::sp_package(MEM_ROOT *mem_root_arg,
   m_rcontext(NULL),
   m_invoked_subroutine_count(0),
   m_is_instantiated(false),
-  m_is_cloning_routine(false)
+  m_is_cloning_routine(false),
+  m_spec(NULL),
+  m_body_package(NULL)
 {
   init_sp_name(name);
 }
@@ -3907,6 +3909,7 @@ sp_head::set_local_variable_assoc_array_field(THD *thd, sp_pcontext *spcont,
 
 
 bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
+                              const Sp_rcontext_handler *rh,
                               sp_pcontext *param_spcont,
                               List<sp_assignment_lex> *parameters)
 {
@@ -3918,11 +3921,11 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
               (parameters ? parameters->elements : 0));
 
   if (parameters &&
-      add_set_cursor_param_variables(thd, param_spcont, parameters))
+      add_set_cursor_param_variables(thd, param_spcont, rh, parameters))
     return true;
 
   sp_instr_copen *i= new (thd->mem_root)
-                     sp_instr_copen(instructions(), spcont, offset);
+                     sp_instr_copen(instructions(), spcont, rh, offset);
   return i == NULL || add_instr(i);
 }
 
@@ -3930,30 +3933,35 @@ bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
 bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
                                        sp_variable *index,
                                        const sp_pcursor *pcursor, uint coffset,
+                                       sp_pcontext *cursor_ctx,
+                                       const Sp_rcontext_handler *cursor_rh,
                                        sp_assignment_lex *param_lex,
                                        Item_args *parameters)
 {
   if (parameters &&
       add_set_for_loop_cursor_param_variables(thd, pcursor->param_context(),
-                                              param_lex, parameters))
+                                              cursor_rh, param_lex, parameters))
     return true;
 
   sp_instr *instr_copy_struct=
     new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
                                                     spcont, coffset,
+                                                    cursor_rh,
                                                     pcursor->lex(),
                                                     index->offset);
   if (instr_copy_struct == NULL || add_instr(instr_copy_struct))
     return true;
 
   sp_instr_copen *instr_copen=
-    new (thd->mem_root) sp_instr_copen(instructions(), spcont, coffset);
+    new (thd->mem_root) sp_instr_copen(instructions(), cursor_ctx,
+                                       cursor_rh, coffset);
   if (instr_copen == NULL || add_instr(instr_copen))
     return true;
 
   sp_instr_cfetch *instr_cfetch=
     new (thd->mem_root) sp_instr_cfetch(instructions(),
-                                        spcont, coffset, false);
+                                        cursor_ctx, cursor_rh,
+                                        coffset, false);
   if (instr_cfetch == NULL || add_instr(instr_cfetch))
     return true;
   instr_cfetch->add_to_varlist(index);
@@ -3964,6 +3972,7 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
 bool
 sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
                                                  sp_pcontext *param_spcont,
+                                                 const Sp_rcontext_handler *rh,
                                                  sp_assignment_lex *param_lex,
                                                  Item_args *parameters)
 {
@@ -3978,7 +3987,7 @@ sp_head::add_set_for_loop_cursor_param_variables(THD *thd,
     bool last= idx + 1 == parameters->argument_count();
     sp_variable *spvar= param_spcont->get_context_variable(idx);
     if (set_local_variable(thd, param_spcont,
-                           &sp_rcontext_handler_local,
+                           rh,
                            spvar, parameters->arguments()[idx],
                            param_lex, last,
                            param_lex->get_expr_str()))
@@ -4195,3 +4204,18 @@ ulong sp_head::sp_cache_version() const
 {
   return m_parent ? m_parent->sp_cache_version() : m_sp_cache_version;
 }
+
+
+sp_package *sp_head::get_spec()
+{
+  return m_parent ? m_parent->get_spec() : NULL;
+}
+
+
+sp_package *sp_package::get_spec()
+{
+  if (m_spec)
+    return m_spec;
+  return m_parent ? m_parent->get_spec() : NULL;
+}
+

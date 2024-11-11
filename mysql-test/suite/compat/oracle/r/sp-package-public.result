@@ -1,0 +1,1511 @@
+# 
+# MDEV-13139 CREATE PACKAGE: package-wide declarations
+# 
+set sql_mode=oracle;
+#
+# SCALAR public variable
+#
+CREATE PACKAGE pkg1
+AS
+m_count INT:= 0;
+FUNCTION get_count RETURN INT;
+PROCEDURE set_count(new_count INT);
+PROCEDURE decrement;
+FUNCTION valid(count INT) RETURN BOOLEAN;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+m_count:= m_count + 1;
+RETURN m_count;
+END;
+PROCEDURE set_count(new_count INT)
+AS
+BEGIN
+m_count:= new_count;
+END;
+PROCEDURE decrement
+AS
+BEGIN
+CASE m_count
+WHEN 0 THEN
+NULL;
+ELSE
+m_count:= m_count - 1;
+END CASE;
+END;
+FUNCTION valid(count INT) RETURN BOOLEAN
+AS
+b BOOLEAN;
+BEGIN
+CASE count
+WHEN 0 THEN
+b:= FALSE;
+WHEN m_count THEN
+b:= TRUE;
+ELSE
+b:= FALSE;
+END CASE;
+RETURN b;
+END;
+END;
+$$
+CREATE PACKAGE pkg2
+AS
+FUNCTION get_count RETURN INT;
+FUNCTION get_count_direct RETURN INT;
+PROCEDURE decrement;
+FUNCTION valid(count INT) RETURN BOOLEAN;
+END;
+$$
+CREATE PACKAGE BODY pkg2
+AS
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+RETURN pkg1.get_count();
+END;
+FUNCTION get_count_direct RETURN INT
+AS
+BEGIN
+RETURN pkg1.m_count;
+END;
+PROCEDURE decrement
+AS
+BEGIN
+CASE pkg1.m_count
+WHEN 0 THEN
+NULL;
+ELSE
+pkg1.m_count:= pkg1.m_count - 1;
+END CASE;
+END;
+FUNCTION valid(count INT) RETURN BOOLEAN
+AS
+b BOOLEAN;
+BEGIN
+CASE count
+WHEN 0 THEN
+b:= FALSE;
+WHEN pkg1.m_count THEN
+b:= TRUE;
+ELSE
+b:= FALSE;
+END CASE;
+RETURN b;
+END;
+END;
+$$
+SELECT pkg1.get_count() FROM DUAL;
+pkg1.get_count()
+1
+CALL pkg1.set_count(5);
+SELECT pkg1.get_count() FROM DUAL;
+pkg1.get_count()
+6
+SELECT pkg1.m_count;
+pkg1.m_count
+6
+CALL pkg1.decrement();
+SELECT pkg1.valid(5) FROM DUAL;
+pkg1.valid(5)
+1
+SELECT pkg2.get_count() FROM DUAL;
+pkg2.get_count()
+6
+CALL pkg2.decrement();
+SELECT pkg2.get_count_direct() FROM DUAL;
+pkg2.get_count_direct()
+5
+SELECT pkg2.valid(5) FROM DUAL;
+pkg2.valid(5)
+1
+DECLARE
+b BOOLEAN;
+BEGIN
+CASE pkg1.m_count
+WHEN 0 THEN
+b:= FALSE;
+WHEN pkg1.m_count THEN
+b:= TRUE;
+ELSE
+b:= FALSE;
+END CASE;
+SELECT b;
+END;
+$$
+b
+1
+#
+# SELECT INTO
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 INTO pkg1.m_count;
+SELECT pkg1.m_count;
+pkg1.m_count
+1
+DROP TABLE t1;
+#
+# Using public variable as OUT VAR
+#
+CREATE PACKAGE pkg3
+AS
+PROCEDURE reset(val OUT INT);
+END;
+$$
+CREATE PACKAGE BODY pkg3
+AS
+PROCEDURE reset(val OUT INT)
+AS
+BEGIN
+val:= 0;
+END;
+END;
+$$
+CALL pkg3.reset(pkg1.m_count);
+SELECT pkg1.m_count;
+pkg1.m_count
+0
+#
+# Using non-existant public variable as OUT VAR
+#
+CALL pkg3.reset(pkg1.m_doesnt_exist);
+ERROR 42S22: Unknown column 'm_doesnt_exist' in 'CALL'
+#
+# Using invalid qualifier as OUT VAR
+#
+CALL pkg3.reset(`pkg1 `.m_doesnt_exist);
+ERROR 42S22: Unknown column 'm_doesnt_exist' in 'CALL'
+#
+# Public variable assignment from anonymous block
+#
+DECLARE
+BEGIN
+pkg1.m_count:= 999;
+SELECT pkg1.m_count;
+END;
+$$
+pkg1.m_count
+999
+DROP PACKAGE pkg1;
+SELECT pkg2.get_count_direct() FROM DUAL;
+ERROR HY000: Failed to load routine test.pkg2 (internal code -6). For more details, run SHOW WARNINGS
+SHOW WARNINGS;
+Level	Code	Message
+Error	4081	Unknown structured system variable or ROW routine variable 'pkg1'
+Error	1457	Failed to load routine test.pkg2 (internal code -6). For more details, run SHOW WARNINGS
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg3;
+#
+# Refer to non-existant SCALAR public variable
+# TODO: Do we need a new error message?
+#
+CREATE PACKAGE pkg1
+AS
+m_count INT:= 0;
+FUNCTION get_count RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+RETURN m_count;
+END;
+END;
+$$
+SELECT pkg1.n_count;
+ERROR 42S02: Unknown table 'pkg1' in SELECT
+DROP PACKAGE pkg1;
+#
+# SCALAR public variable shadowing with package private variable
+#
+CREATE PACKAGE pkg1
+AS
+m_count INT:= 0;
+FUNCTION get_count RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+m_count INT:= 0;
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+m_count:= m_count + 1;
+RETURN m_count;
+END;
+END;
+$$
+SELECT pkg1.m_count;
+pkg1.m_count
+0
+SELECT pkg1.get_count(), pkg1.m_count;
+pkg1.get_count()	pkg1.m_count
+1	0
+DROP PACKAGE pkg1;
+#
+# SCALAR private variable cannot be accessed externally
+#
+CREATE PACKAGE pkg1
+AS
+FUNCTION get_count RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+m_count INT:= 0;
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+m_count:= m_count + 1;
+RETURN m_count;
+END;
+END;
+$$
+SELECT pkg1.m_count;
+ERROR 42S02: Unknown table 'pkg1' in SELECT
+SELECT pkg1.get_count();
+pkg1.get_count()
+1
+DROP PACKAGE pkg1;
+#
+# Public variables cannot be initialized with the same
+# package's function
+#
+CREATE OR REPLACE PACKAGE pkg1
+AS
+m_count INT:= init_count();
+FUNCTION init_count RETURN INT;
+FUNCTION get_count RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION init_count RETURN INT
+AS
+BEGIN
+RETURN 1;
+END;
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+m_count:= m_count + 1;
+RETURN m_count;
+END;
+END;
+$$
+SELECT pkg1.m_count;
+ERROR 42000: FUNCTION test.init_count does not exist
+SELECT pkg1.init_count();
+pkg1.init_count()
+1
+SELECT pkg1.get_count();
+ERROR 42000: FUNCTION test.init_count does not exist
+DROP PACKAGE pkg1;
+#
+# Public variables can be initialized with a different
+# package's public function
+#
+CREATE OR REPLACE PACKAGE pkg1
+AS
+FUNCTION init_count RETURN INT;
+END;
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION init_count RETURN INT
+AS
+BEGIN
+RETURN 1;
+END;
+END;
+$$
+CREATE OR REPLACE PACKAGE pkg2
+AS
+m_count INT:= pkg1.init_count();
+FUNCTION get_count RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg2
+AS
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+m_count:= m_count + 1;
+RETURN m_count;
+END;
+END;
+$$
+SELECT pkg2.m_count;
+pkg2.m_count
+1
+SELECT pkg2.get_count();
+pkg2.get_count()
+2
+#
+# Public variables can be initialized with a different
+# package's public variable
+#
+CREATE OR REPLACE PACKAGE pkg3
+AS
+m_count INT:= pkg2.m_count;
+FUNCTION get_count RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg3
+AS
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+m_count:= m_count + 1;
+RETURN m_count;
+END;
+END;
+$$
+SELECT pkg3.m_count;
+pkg3.m_count
+1
+SELECT pkg3.get_count();
+pkg3.get_count()
+2
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+DROP PACKAGE pkg3;
+#
+# SCALAR public variable, with type REF
+#
+CREATE TABLE t1(a INT);
+CREATE OR REPLACE PACKAGE pkg1
+AS
+m_count t1.a%TYPE:= 0;
+FUNCTION get_count RETURN INT;
+PROCEDURE set_count(new_count INT);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_count RETURN INT
+AS
+BEGIN
+m_count:= m_count + 1;
+RETURN m_count;
+END;
+PROCEDURE set_count(new_count INT)
+AS
+BEGIN
+m_count:= new_count;
+END;
+END;
+$$
+SELECT pkg1.get_count() FROM DUAL;
+pkg1.get_count()
+1
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+#
+# RECORD public type and variable
+#
+CREATE PACKAGE pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+FUNCTION get_dept_id RETURN INT;
+PROCEDURE set_dept_id(new_dept_id INT);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+PROCEDURE set_dept_id(new_dept_id INT)
+AS
+BEGIN
+dept_rec.dept_id:= new_dept_id;
+END;
+END;
+$$
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+11
+CALL pkg1.set_dept_id(5);
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+5
+SELECT pkg1.dept_rec.dept_id;
+pkg1.dept_rec.dept_id
+5
+#
+# Accesing RECORD public type from anonymous block
+#
+DECLARE
+dept_rec pkg1.DeptRecTyp:= pkg1.DeptRecTyp(11,'a',201,1700);
+str VARCHAR(1024);
+BEGIN
+str:= 
+'dept_id:   ' || dept_rec.dept_id   || '; ' ||
+'dept_name: ' || dept_rec.dept_name || '; ' ||
+'mgr_id:    ' || dept_rec.mgr_id    || '; ' ||
+'loc_id:    ' || dept_rec.loc_id;
+select str;
+END;
+$$
+str
+dept_id:   11; dept_name: a; mgr_id:    201; loc_id:    1700
+#
+# Initializing a RECORD with 0 field
+#
+DECLARE
+dept_rec pkg1.DeptRecTyp:= pkg1.DeptRecTyp();
+BEGIN
+NULL;
+END;
+$$
+ERROR HY000: Incorrect arguments to DeptRecTyp();
+BEGIN
+NULL;
+END
+#
+# SELECT INTO
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (66);
+SELECT * FROM t1 INTO pkg1.dept_rec.dept_id;
+SELECT pkg1.dept_rec.dept_id;
+pkg1.dept_rec.dept_id
+66
+DROP TABLE t1;
+#
+# Using public RECORD variable as OUT VAR
+#
+CREATE PACKAGE pkg2
+AS
+PROCEDURE reset(val OUT INT);
+END;
+$$
+CREATE PACKAGE BODY pkg2
+AS
+PROCEDURE reset(val OUT INT)
+AS
+BEGIN
+val:= 0;
+END;
+END;
+$$
+CALL pkg2.reset(pkg1.dept_rec.dept_id);
+SELECT pkg1.dept_rec.dept_id;
+pkg1.dept_rec.dept_id
+0
+#
+# Using non-existant public variable as OUT VAR
+#
+CALL pkg2.reset(pkg1.does_not_exist.dept_id);
+ERROR 42S22: Unknown column 'dept_id' in 'CALL'
+#
+# Using invalid qualifier as OUT VAR
+#
+CALL pkg2.reset(`pkg1 `.dept_rec.dept_id);
+ERROR 42S22: Unknown column 'dept_id' in 'CALL'
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+#
+# RECORD public type usage within the same BODY
+#
+CREATE PACKAGE pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+FUNCTION get_dept_id RETURN INT;
+PROCEDURE set_dept_id(new_dept_id INT);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+PROCEDURE set_dept_id(new_dept_id INT)
+AS
+BEGIN
+dept_rec.dept_id:= new_dept_id;
+END;
+END;
+$$
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+11
+CALL pkg1.set_dept_id(5);
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+5
+DROP PACKAGE pkg1;
+#
+# RECORD public type usage within the same BODY's routine
+#
+CREATE PACKAGE pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+FUNCTION get_dept_id RETURN INT;
+PROCEDURE set_dept_id(new_dept_id INT);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_dept_id RETURN INT
+AS
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+PROCEDURE set_dept_id(new_dept_id INT)
+AS
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+BEGIN
+dept_rec.dept_id:= new_dept_id;
+END;
+END;
+$$
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+11
+CALL pkg1.set_dept_id(5);
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+11
+DROP PACKAGE pkg1;
+#
+# RECORD public type shadowing
+#
+CREATE PACKAGE pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30)
+);
+FUNCTION get_dept_id RETURN INT;
+PROCEDURE set_dept_id(new_dept_id INT);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+PROCEDURE set_dept_id(new_dept_id INT)
+AS
+BEGIN
+dept_rec.dept_id:= new_dept_id;
+END;
+END;
+$$
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+11
+CALL pkg1.set_dept_id(5);
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+5
+DROP PACKAGE pkg1;
+#
+# RECORD private type cannot be accessed externally
+#
+CREATE PACKAGE pkg1
+AS
+FUNCTION get_dept_id RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+END;
+$$
+DECLARE
+dept_rec pkg1.DeptRecTyp:= pkg1.DeptRecTyp(11,'a',201,1700);
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':= pkg1.DeptRecTyp(11,'a',201,1700);
+BEGIN
+NULL;
+END' at line 2
+DECLARE
+dept_rec INT:= pkg1.DeptRecTyp(11,'a',201,1700);
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: FUNCTION pkg1.DeptRecTyp does not exist
+DROP PACKAGE pkg1;
+#
+# RECORD public variable shadowing
+#
+CREATE PACKAGE pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+FUNCTION get_dept_id RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+dept_rec DeptRecTyp:= DeptRecTyp(12,'b',202,1701);
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+END;
+$$
+SELECT pkg1.get_dept_id();
+pkg1.get_dept_id()
+12
+DROP PACKAGE pkg1;
+#
+# RECORD private variable cannot be accessed externally
+#
+CREATE PACKAGE pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+FUNCTION get_dept_id RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+dept_rec DeptRecTyp:= DeptRecTyp(12,'b',202,1701);
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+END;
+$$
+DECLARE
+BEGIN
+SELECT pkg1.dept_rec.dept_id;
+END;
+$$
+ERROR 42S02: Unknown table 'pkg1.dept_rec' in SELECT
+DROP PACKAGE pkg1;
+#
+# RECORD public variable can be initialized with a different
+# package's RECORD public variable
+#
+CREATE PACKAGE pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(12,'b',202,1701);
+FUNCTION get_dept_id RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+END;
+$$
+CREATE PACKAGE pkg2
+AS
+dept_rec pkg1.DeptRecTyp:= pkg1.dept_rec;
+FUNCTION get_dept_id RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg2
+AS
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+END;
+$$
+SELECT pkg2.get_dept_id();
+pkg2.get_dept_id()
+12
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+#
+# ROW public type
+#
+CREATE TABLE t1(a INT, b VARCHAR(32));
+CREATE PACKAGE pkg1
+AS
+a ROW(a INT, b VARCHAR(32)):= ROW(1,'b1');
+b t1%ROWTYPE:= ROW(2,'b2');
+FUNCTION get_a RETURN INT;
+FUNCTION get_b RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_a RETURN INT
+AS
+BEGIN
+RETURN a.a;
+END;
+FUNCTION get_b RETURN INT
+AS
+BEGIN
+RETURN b.a;
+END;
+END;
+$$
+SELECT pkg1.get_a() FROM DUAL;
+pkg1.get_a()
+1
+SELECT pkg1.get_b() FROM DUAL;
+pkg1.get_b()
+2
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+#
+# ASSOC ARRAY with SCALAR element
+#
+CREATE PACKAGE pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64));
+FUNCTION first RETURN VARCHAR2(20);
+END;
+$$
+Warnings:
+Note	1585	This function 'first' has the same name as a native function
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64))
+AS
+BEGIN
+colors(idx):= color;
+END;
+FUNCTION first RETURN VARCHAR2(20)
+AS
+BEGIN
+RETURN colors.FIRST;
+END;
+END;
+$$
+Warnings:
+Note	1585	This function 'first' has the same name as a native function
+Note	1585	This function 'first' has the same name as a native function
+SELECT pkg1.get_color('1') FROM DUAL;
+pkg1.get_color('1')
+Orange
+CALL pkg1.set_color('1', 'Green');
+SELECT pkg1.get_color('1') FROM DUAL;
+pkg1.get_color('1')
+Green
+SELECT pkg1.colors('1');
+pkg1.colors('1')
+Green
+SELECT pkg1.colors.next(pkg1.colors.first);
+pkg1.colors.next(pkg1.colors.first)
+2
+#
+# ASSOC ARRAY with SCALAR element public type
+#
+DECLARE
+colors pkg1.colors_t:= pkg1.colors_t('1' => 'Yellow', '2' => 'Purple');
+str VARCHAR(1024);
+BEGIN
+select colors(colors.last);
+END;
+$$
+colors(colors.last)
+Purple
+#
+# SELECT INTO
+#
+CREATE TABLE t1(a VARCHAR(64));
+INSERT INTO t1 VALUES ('Magenta');
+SELECT * FROM t1 INTO pkg1.colors(1);
+SELECT pkg1.colors('1');
+pkg1.colors('1')
+Magenta
+DROP TABLE t1;
+#
+# Using public ASSOC ARRAY variable's element as OUT VAR
+#
+CREATE PACKAGE pkg2
+AS
+PROCEDURE reset(val OUT VARCHAR(64));
+END;
+$$
+CREATE PACKAGE BODY pkg2
+AS
+PROCEDURE reset(val OUT VARCHAR(64))
+AS
+BEGIN
+val:= '';
+END;
+END;
+$$
+CALL pkg2.reset(pkg1.colors('1'));
+SELECT pkg1.colors('1');
+pkg1.colors('1')
+
+#
+# Using non-existant public variable as OUT VAR
+#
+CALL pkg2.reset(pkg1.does_not_exist('1'));
+ERROR 42000: OUT or INOUT argument 1 for routine test.pkg2.reset is not a variable or NEW pseudo-variable in BEFORE trigger
+#
+# Using invalid qualifier as OUT VAR
+#
+CALL pkg2.reset(`pkg1 `.colors('1'));
+ERROR 42000: Incorrect database name 'pkg1 '
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+#
+# ASSOC ARRAY public type usage within the same BODY
+#
+CREATE PACKAGE pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64));
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64))
+AS
+BEGIN
+colors(idx):= color;
+END;
+END;
+$$
+SELECT pkg1.get_color('1') FROM DUAL;
+pkg1.get_color('1')
+Orange
+CALL pkg1.set_color('1', 'Green');
+SELECT pkg1.get_color('1') FROM DUAL;
+pkg1.get_color('1')
+Green
+DROP PACKAGE pkg1;
+#
+# ASSOC ARRAY public type shadowing
+#
+CREATE PACKAGE pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(4) INDEX BY VARCHAR2(20);
+colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+END;
+$$
+SELECT pkg1.get_color('1') FROM DUAL;
+pkg1.get_color('1')
+Oran
+Warnings:
+Warning	1265	Data truncated for column '' at row 0
+DROP PACKAGE pkg1;
+#
+# ASSOC ARRAY private type cannot be accessed externally
+#
+CREATE PACKAGE pkg1
+AS
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+END;
+$$
+DECLARE
+colors pkg1.colors_t:= pkg1.colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':= pkg1.colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+BEGIN
+NULL;
+END' at line 2
+DECLARE
+colors INT:= pkg1.colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: Incorrect parameters in the call to stored function 'colors_t'
+DROP PACKAGE pkg1;
+#
+# Public ASSOC ARRAY or RECORD type from non-existent package
+#
+DECLARE
+colors pkg.colors_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+BEGIN
+NULL;
+END' at line 2
+#
+# Public ASSOC ARRAY or RECORD type with invalid package qualifier
+#
+DECLARE
+colors `pkg `.colors_t;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: Incorrect routine name 'pkg '
+#
+# ASSOC ARRAY public variable shadowing
+#
+CREATE PACKAGE pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64));
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+colors colors_t:= colors_t('1' => 'Purple', '2' => 'Cyan', '3' => 'Magenta');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64))
+AS
+BEGIN
+colors(idx):= color;
+END;
+END;
+$$
+SELECT pkg1.get_color('1') FROM DUAL;
+pkg1.get_color('1')
+Purple
+CALL pkg1.set_color('1', 'Green');
+SELECT pkg1.get_color('1') FROM DUAL;
+pkg1.get_color('1')
+Green
+DROP PACKAGE pkg1;
+#
+# ASSOC ARRAY public variable can be initialized with a different
+# package's ASSOC ARRAY public variable
+#
+CREATE PACKAGE pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+colors colors_t:= colors_t('1' => 'Purple', '2' => 'Cyan', '3' => 'Magenta');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+END;
+$$
+CREATE PACKAGE pkg2
+AS
+colors pkg1.colors_t:= pkg1.colors;
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+END;
+$$
+CREATE PACKAGE BODY pkg2
+AS
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+END;
+$$
+SELECT pkg1.colors('1') FROM DUAL;
+pkg1.colors('1')
+Purple
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+#
+# ASSOC ARRAY private variable cannot be accessed externally
+#
+CREATE PACKAGE pkg1
+AS
+TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+colors colors_t:= colors_t('1' => 'Purple', '2' => 'Cyan', '3' => 'Magenta');
+FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN colors(idx);
+END;
+END;
+$$
+SELECT pkg1.colors('1') FROM DUAL;
+ERROR 42000: FUNCTION pkg1.colors does not exist
+DROP PACKAGE pkg1;
+#
+# ASSOC ARRAY with record element
+#
+CREATE PACKAGE pkg1
+AS
+TYPE person_t IS RECORD
+(
+first_name VARCHAR(64),
+last_name VARCHAR(64)
+);
+TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+person_by_nickname table_of_person_t;
+FUNCTION get_first() RETURN VARCHAR2(64);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+FUNCTION get_first() RETURN VARCHAR2(64)
+AS
+BEGIN
+RETURN person_by_nickname(person_by_nickname.first).first_name;
+END;
+BEGIN
+person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+person_by_nickname('Serg') := person_t('Sergei ', 'Golubchik');
+END;
+$$
+SELECT pkg1.get_first();
+pkg1.get_first()
+Michael
+SELECT pkg1.person_by_nickname(pkg1.person_by_nickname.last).first_name;
+pkg1.person_by_nickname(pkg1.person_by_nickname.last).first_name
+Sergei 
+#
+# Non existant public ASSOC ARRAY with record element
+#
+SELECT pkg1.does_not_exist('1').does_not_exist;
+ERROR 42000: Undeclared variable: pkg1.does_not_exist
+DROP PACKAGE pkg1;
+#
+# Public CURSOR with argument
+# Cursor declarations are not supported yet so we only test with
+# cursor definition in package specification
+#
+CREATE OR REPLACE TABLE t1
+(
+id INTEGER,
+name VARCHAR2(64)
+);
+INSERT INTO t1 VALUES (1, 'Ikram');
+INSERT INTO t1 VALUES (2, 'Stefan');
+CREATE OR REPLACE PACKAGE pkg1
+AS
+-- only support cursor definition for now
+CURSOR c1(id_in IN INTEGER) IS
+SELECT * FROM t1 WHERE id = id_in;
+PROCEDURE open_cursor(id IN INTEGER);
+PROCEDURE close_cursor();
+PROCEDURE fetch_cursor();
+PROCEDURE loop_cursor(id IN INTEGER);
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1
+AS
+PROCEDURE open_cursor(id IN INTEGER)
+AS
+BEGIN
+OPEN c1(id);
+IF c1%ISOPEN THEN
+SELECT 'c1 is open', c1%ROWCOUNT;
+END IF;
+END;
+PROCEDURE close_cursor()
+AS
+BEGIN
+CLOSE c1;
+IF NOT c1%ISOPEN THEN
+SELECT 'c1 is closed';
+END IF;
+END;
+PROCEDURE fetch_cursor()
+AS
+id INTEGER;
+name VARCHAR2(64);
+BEGIN
+LOOP
+FETCH c1 INTO id, name;
+EXIT WHEN c1%NOTFOUND;
+SELECT id, name;
+END LOOP;
+SELECT c1%ROWCOUNT;
+END;
+PROCEDURE loop_cursor(id IN INTEGER)
+AS
+BEGIN
+FOR r IN c1(id)
+LOOP
+SELECT r.id, r.name;
+END LOOP;
+END;
+END;
+$$
+DECLARE
+BEGIN
+OPEN pkg1.c1(1);
+IF pkg1.c1%ISOPEN THEN
+SELECT 'c1 is open', pkg1.c1%ROWCOUNT;
+END IF;
+END;
+$$
+c1 is open	pkg1.c1%ROWCOUNT
+c1 is open	0
+DECLARE
+id INTEGER;
+name VARCHAR2(64);
+BEGIN
+FETCH pkg1.c1 INTO id, name;
+SELECT id, name;
+END;
+$$
+id	name
+1	Ikram
+DECLARE
+BEGIN
+CLOSE pkg1.c1;
+END;
+$$
+CALL pkg1.open_cursor(2);
+c1 is open	c1%ROWCOUNT
+c1 is open	0
+CALL pkg1.fetch_cursor();
+id	name
+2	Stefan
+c1%ROWCOUNT
+1
+CALL pkg1.close_cursor();
+c1 is closed
+c1 is closed
+CALL pkg1.loop_cursor(1);
+r.id	r.name
+1	Ikram
+DECLARE
+BEGIN
+FOR r IN pkg1.c1(1)
+LOOP
+SELECT r.id, r.name;
+END LOOP;
+END;
+$$
+r.id	r.name
+1	Ikram
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+#
+# Public CURSOR without argument
+# Cursor declarations are not supported yet so we only test with
+# cursor definition in package specification
+#
+CREATE OR REPLACE TABLE t1
+(
+id INTEGER,
+name VARCHAR2(64)
+);
+INSERT INTO t1 VALUES (1, 'Ikram');
+INSERT INTO t1 VALUES (2, 'Stefan');
+CREATE OR REPLACE PACKAGE pkg1
+AS
+-- only support cursor definition for now
+CURSOR c1 IS
+SELECT * FROM t1;
+PROCEDURE open_cursor();
+PROCEDURE close_cursor();
+PROCEDURE fetch_cursor();
+PROCEDURE loop_cursor();
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1
+AS
+PROCEDURE open_cursor()
+AS
+BEGIN
+OPEN c1;
+IF c1%ISOPEN THEN
+SELECT 'c1 is open', c1%ROWCOUNT;
+END IF;
+END;
+PROCEDURE close_cursor()
+AS
+BEGIN
+CLOSE c1;
+IF NOT c1%ISOPEN THEN
+SELECT 'c1 is closed';
+END IF;
+END;
+PROCEDURE fetch_cursor()
+AS
+id INTEGER;
+name VARCHAR2(64);
+BEGIN
+LOOP
+FETCH c1 INTO id, name;
+EXIT WHEN c1%NOTFOUND;
+SELECT id, name;
+END LOOP;
+SELECT c1%ROWCOUNT;
+END;
+PROCEDURE loop_cursor()
+AS
+BEGIN
+-- We need to explicitly add empty parentheses for now
+FOR r IN c1()
+LOOP
+SELECT r.id, r.name;
+END LOOP;
+END;
+END;
+$$
+CALL pkg1.open_cursor();
+c1 is open	c1%ROWCOUNT
+c1 is open	0
+CALL pkg1.fetch_cursor();
+id	name
+1	Ikram
+id	name
+2	Stefan
+c1%ROWCOUNT
+2
+CALL pkg1.close_cursor();
+c1 is closed
+c1 is closed
+CALL pkg1.loop_cursor();
+r.id	r.name
+1	Ikram
+r.id	r.name
+2	Stefan
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+#
+# Private CURSORs cannot be accessed externally
+#
+CREATE OR REPLACE TABLE t1
+(
+id INTEGER,
+name VARCHAR2(64)
+);
+INSERT INTO t1 VALUES (1, 'Ikram');
+INSERT INTO t1 VALUES (2, 'Stefan');
+CREATE OR REPLACE PACKAGE pkg1
+AS
+PROCEDURE open_cursor();
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1
+AS
+CURSOR c1 IS
+SELECT * FROM t1;
+PROCEDURE open_cursor()
+AS
+BEGIN
+OPEN c1;
+IF c1%ISOPEN THEN
+SELECT 'c1 is open', c1%ROWCOUNT;
+END IF;
+END;
+END;
+$$
+DECLARE
+BEGIN
+FOR r IN pkg1.c1()
+LOOP
+SELECT r.id, r.name;
+END LOOP;
+END;
+$$
+ERROR 42000: Undefined CURSOR: pkg1.c1
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+#
+# Public EXCEPTION
+#
+CREATE OR REPLACE PACKAGE pkg1
+AS
+exc EXCEPTION;
+PROCEDURE raise_exc();
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1
+AS
+PROCEDURE raise_exc()
+AS
+BEGIN
+RAISE exc;
+EXCEPTION
+WHEN exc THEN
+SELECT 'exc raised';
+END;
+END;
+$$
+DECLARE
+BEGIN
+RAISE pkg1.exc;
+EXCEPTION
+WHEN pkg1.exc THEN
+SELECT 'exc raised';
+END;
+$$
+exc raised
+exc raised
+CALL pkg1.raise_exc();
+exc raised
+exc raised
+DROP PACKAGE pkg1;
+#
+# Private EXCEPTION cannot be accessed externally
+#
+CREATE OR REPLACE PACKAGE pkg1
+AS
+PROCEDURE raise_exc();
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1
+AS
+exc EXCEPTION;
+PROCEDURE raise_exc()
+AS
+BEGIN
+RAISE exc;
+EXCEPTION
+WHEN exc THEN
+SELECT 'exc raised';
+END;
+END;
+$$
+DECLARE
+BEGIN
+RAISE pkg1.exc;
+EXCEPTION
+WHEN pkg1.exc THEN
+SELECT 'exc raised';
+END;
+$$
+ERROR 42000: Undefined CONDITION: pkg1.exc
+CALL pkg1.raise_exc();
+exc raised
+exc raised
+DROP PACKAGE pkg1;
+#
+# Non existant exception
+#
+DECLARE
+BEGIN
+RAISE pkg1.exc;
+EXCEPTION
+WHEN pkg1.exc THEN
+SELECT 'exc raised';
+END;
+$$
+ERROR 42000: Undefined CONDITION: pkg1.exc
+#
+# Invalid package qualifier
+#
+DECLARE
+BEGIN
+RAISE `pkg1 `.exc;
+EXCEPTION
+WHEN `pkg1 `.exc THEN
+SELECT 'exc raised';
+END;
+$$
+ERROR 42000: Incorrect routine name 'pkg1 '

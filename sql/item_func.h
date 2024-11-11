@@ -1347,9 +1347,11 @@ class Cursor_ref
 protected:
   LEX_CSTRING m_cursor_name;
   uint m_cursor_offset;
+  const Sp_rcontext_handler *m_rh;
   class sp_cursor *get_open_cursor_or_error();
-  Cursor_ref(const LEX_CSTRING *name, uint offset)
-   :m_cursor_name(*name), m_cursor_offset(offset)
+  Cursor_ref(const LEX_CSTRING *name, uint offset,
+             const Sp_rcontext_handler *rh)
+   :m_cursor_name(*name), m_cursor_offset(offset), m_rh(rh)
   { }
   void print_func(String *str, const LEX_CSTRING &func_name);
 };
@@ -1360,8 +1362,9 @@ class Item_func_cursor_rowcount: public Item_longlong_func,
                                  public Cursor_ref
 {
 public:
-  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_longlong_func(thd), Cursor_ref(name, offset)
+  Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name,
+                            uint offset, const Sp_rcontext_handler *rh)
+   :Item_longlong_func(thd), Cursor_ref(name, offset, rh)
   {
     set_maybe_null();
   }

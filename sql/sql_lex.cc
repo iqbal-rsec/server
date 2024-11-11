@@ -59,6 +59,23 @@ const LEX_CSTRING param_clex_str= {"?", 1};
 const LEX_CSTRING NULL_clex_str=  {STRING_WITH_LEN("NULL")};
 const LEX_CSTRING error_clex_str= {STRING_WITH_LEN("error")};
 
+
+class Package_public_parse_error_handler: public Internal_error_handler
+{
+public:
+  virtual
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char *sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition **cond_hdl) override
+  {
+    // Ignore all
+    return true;
+  }
+};
+
 /**
   Helper action for a case expression statement (the expr in 'CASE expr').
   This helper is used for 'searched' cases only.
@@ -6634,13 +6651,144 @@ LEX::find_variable(const LEX_CSTRING *name,
   sp_package *pkg= sphead ? sphead->m_parent : NULL;
   if (pkg && (spv= pkg->find_package_variable(name)))
   {
-    *ctx= pkg->get_parse_context()->child_context(0);
+    *ctx= pkg->get_package_pcontext();
     *rh= &sp_rcontext_handler_package_body;
+    return spv;
+  }
+  pkg= sphead ? sphead->get_spec() : NULL; 
+  if (pkg && (spv= pkg->find_package_variable(name)))
+  {
+    // Public variables within the current package
+    *ctx= pkg->get_package_pcontext();
+    *rh= &sp_rcontext_handler_package_spec;
     return spv;
   }
   *ctx= NULL;
   *rh= NULL;
   return NULL;
+}
+
+
+sp_variable *LEX::find_package_public_variable(const Lex_ident_sys_st &pkg_name,
+                                            const LEX_CSTRING &name,
+                                            sp_pcontext **ctx,
+                                            sp_package **spec)
+{
+  sp_variable *spv;
+  sp_package *pkg= find_package_spec(thd, pkg_name);
+  if (likely(pkg))
+  {
+    if ((spv= pkg->find_package_variable(&name)))
+    {
+      *ctx= pkg->get_package_pcontext();
+      *spec= pkg;
+      return spv;
+    }
+  }
+
+  return NULL;
+}
+
+
+sp_record *LEX::find_record(const LEX_CSTRING *name) const
+{
+  sp_record *rec;
+  if (spcont && (rec= spcont->find_record(name, false)))
+    return rec;
+  sp_package *pkg= sphead ? sphead->m_parent : NULL;
+  if (pkg && (rec= pkg->get_package_pcontext()->find_record(name, false)))
+    return rec;
+  pkg= sphead ? sphead->get_spec() : NULL;
+  if (pkg && (rec= pkg->get_package_pcontext()->find_record(name, false)))
+    return rec;
+  return NULL;
+}
+
+
+sp_assoc_array *LEX::find_assoc_array(const LEX_CSTRING *name) const
+{
+  sp_assoc_array *aa;
+  if (spcont && (aa= spcont->find_assoc_array(name, false)))
+    return aa;
+  sp_package *pkg= sphead ? sphead->m_parent : NULL;
+  if (pkg && (aa= pkg->get_package_pcontext()->find_assoc_array(name, false)))
+    return aa;
+  pkg= sphead ? sphead->get_spec() : NULL;
+  if (pkg && (aa= pkg->get_package_pcontext()->find_assoc_array(name, false)))
+    return aa;
+
+  return NULL;
+}
+
+
+bool LEX::sp_package_public_type(THD *thd,
+                       sp_package *pkg,
+                       const Lex_ident_sys_st &type_name,
+                       Lex_field_type_st *type)
+{
+  DBUG_ASSERT(pkg);
+
+  sp_pcontext *pcont= pkg->get_package_pcontext();
+  sp_record *rec= pcont->find_record(&type_name, true);
+  if (rec)
+  {
+    type->set(&type_handler_row, NULL);
+    last_field->set_attr_const_void_ptr(0, rec);
+
+    return false;
+  }
+  
+  sp_assoc_array *assoc= pcont->find_assoc_array(&type_name, true);
+  if (assoc)
+  {
+    type->set(&type_handler_assoc_array, NULL);
+    last_field->set_attr_const_void_ptr(0, assoc);
+
+    return false;
+  }
+
+  return true;
+}
+
+
+bool LEX::sp_package_public_type(THD *thd,
+                          const Lex_ident_sys_st &pkg_name,
+                          const Lex_ident_sys_st &type_name,
+                          Lex_field_type_st *type)
+{
+  /*
+    We don't want to set any error here, since the caller should always
+    use this function in a context where it is allowed to fail (i.e. if
+    the type with given name is not found, try to parse it as a function
+    call).
+  */
+  sp_package *pkg= find_package_spec(thd, pkg_name);
+  if (likely(pkg))
+    return sp_package_public_type(thd, pkg, type_name, type);
+
+  return true;
+}
+
+
+bool LEX::sp_package_public_type_with_error(THD *thd,
+                          const Lex_ident_sys_st &pkg_name,
+                          const Lex_ident_sys_st &type_name,
+                          Lex_field_type_st *type)
+{
+  sp_package *pkg= find_package_spec_with_error(thd, pkg_name);
+  if (likely(pkg))
+  {
+    if (unlikely(sp_package_public_type(thd, pkg, type_name, type)))
+    {
+      thd->parse_error();
+      return true;
+    }
+
+    return false;
+  }
+  
+  thd->parse_error();
+  return true;
 }
 
 
@@ -7211,6 +7359,7 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
     sp_instr_cursor_copy_struct *instr=
       new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
                                                       spcont, offset,
+                                                      &sp_rcontext_handler_local,
                                                       pcursor->lex(),
                                                       spvar->offset);
     if (instr == NULL || sphead->add_instr(instr))
@@ -7410,6 +7559,8 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
                                      const LEX_CSTRING *name,
                                      const sp_pcursor *pcursor,
                                      uint coffset,
+                                     sp_pcontext *cursor_ctx,
+                                     const Sp_rcontext_handler *cursor_rh,
                                      sp_assignment_lex *param_lex,
                                      Item_args *parameters)
 {
@@ -7424,7 +7575,7 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
   spvar->field_def.set_cursor_rowtype_ref(coffset);
 
   if (unlikely(sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor,
-                                                coffset,
+                                                coffset, cursor_ctx, cursor_rh,
                                                 param_lex, parameters)))
     return NULL;
 
@@ -7484,12 +7635,13 @@ bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
   Item *expr;
   spcont->set_for_loop(loop);
   sphead->reset_lex(thd);
-  cursor_name= spcont->find_cursor(loop.m_cursor_offset);
+  cursor_name= loop.m_cursor_ctx->find_cursor(loop.m_cursor_offset);
   DBUG_ASSERT(cursor_name);
   if (unlikely(!(expr=
                  new (thd->mem_root)
                  Item_func_cursor_found(thd, cursor_name,
-                                        loop.m_cursor_offset))))
+                                        loop.m_cursor_offset,
+                                        loop.m_cursor_rh))))
     return true;
   if (thd->lex->sp_while_loop_expression(thd, expr, empty_clex_str))
     return true;
@@ -7544,20 +7696,34 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
   Item_splocal *item_splocal;
   Item_field *item_field;
   Item_func_sp *item_func_sp= NULL;
+  Lex_ident_sys pkg_name;
   LEX_CSTRING name;
   uint coffs, param_count= 0;
   const sp_pcursor *pcursor;
+
+  /*
+    Helper class to delete bounds.m_index on error conditions
+  */
+  struct raii_param_lex
+  {
+    sp_assignment_lex *m_index;
+    raii_param_lex(sp_assignment_lex *index) : m_index(index) {}
+    ~raii_param_lex() { if (m_index) delete m_index; }
+  } raii_param_lex(bounds.m_index);
+
   DBUG_ENTER("LEX::sp_for_loop_cursor_declarations");
 
   if ((item_splocal= item->get_item_splocal()))
     name= item_splocal->m_name;
   else if ((item_field= item->type() == Item::FIELD_ITEM ?
-                        static_cast<Item_field *>(item) : NULL) &&
-           item_field->table_name.str == NULL)
+                        static_cast<Item_field *>(item) : NULL))
+  {
+    pkg_name.copy_sys(thd, &item_field->table_name);
     name= item_field->field_name;
+  }
+    
   else if (item->type() == Item::FUNC_ITEM &&
-           static_cast<Item_func*>(item)->functype() == Item_func::FUNC_SP &&
-           !static_cast<Item_func_sp*>(item)->get_sp_name()->m_explicit_name)
+           static_cast<Item_func*>(item)->functype() == Item_func::FUNC_SP)
   {
     /*
       When a FOR LOOP for a cursor with parameters is parsed:
@@ -7573,6 +7739,8 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
       "OPEN cursor(1,2,3)" where every expression belongs to a separate LEX.
     */
     item_func_sp= static_cast<Item_func_sp*>(item);
+    if (item_func_sp->get_sp_name()->m_explicit_name)
+      pkg_name.copy_sys(thd, &item_func_sp->get_sp_name()->m_db);
     name= item_func_sp->get_sp_name()->m_name;
     param_count= item_func_sp->argument_count();
   }
@@ -7581,19 +7749,59 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
     thd->parse_error();
     DBUG_RETURN(true);
   }
-  if (unlikely(!(pcursor= spcont->find_cursor_with_error(&name, &coffs,
-                                                         false)) ||
-               pcursor->check_param_count_with_error(param_count)))
+
+  sp_pcontext *cursor_ctx= NULL;
+  const Sp_rcontext_handler *cursor_rh= NULL;
+  if (pkg_name.str && pkg_name.length)
+  {
+    if (unlikely(!(pcursor= find_package_public_cursor(thd, pkg_name,
+                                                       &name, &coffs,
+                                                       &cursor_ctx,
+                                                       &cursor_rh))))
+    {
+      const Database_qualified_name dqname(Lex_ident_db(pkg_name), name);
+      my_error(ER_SP_CURSOR_MISMATCH, MYF(0),
+                                      ErrConvDQName(&dqname).lex_cstring().str);
+      DBUG_RETURN(true);
+    }
+  }
+  else if (unlikely(!(pcursor= find_cursor(&name, &coffs,
+                                           &cursor_ctx,
+                                           &cursor_rh))))
+  {
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+    DBUG_RETURN(true);
+  }
+  if (unlikely(pcursor->check_param_count_with_error(param_count)))
     DBUG_RETURN(true);
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
                                                        pcursor, coffs,
+                                                       cursor_ctx, cursor_rh,
                                                        bounds.m_index,
                                                        item_func_sp)))
     DBUG_RETURN(true);
+  
+  /*
+    We have no error cases anymore, so we can release the bounds.m_index 
+  */
+  raii_param_lex.m_index= NULL;
+
+  /*
+    Free param_lex right away if there are no parameters
+    i.e. FOR i IN cursor() LOOP END LOOP;
+
+    For other cases the param_lex is deleted by the last sp_instr_set in
+    sp_head::add_set_for_loop_cursor_param_variables
+  */
+  if (!item_func_sp || item_func_sp->argument_count() == 0)
+    delete bounds.m_index;
+
   loop->m_target_bound= NULL;
   loop->m_direction= bounds.m_direction;
   loop->m_cursor_offset= coffs;
+  loop->m_cursor_ctx= cursor_ctx; 
+  loop->m_cursor_rh= cursor_rh;
   loop->m_implicit_cursor= bounds.m_implicit_cursor;
   DBUG_RETURN(false);
 }
@@ -7645,7 +7853,8 @@ bool LEX::sp_for_loop_cursor_iterate(THD *thd, const Lex_for_loop_st &loop)
 {
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
-                                        spcont, loop.m_cursor_offset, false);
+                                        loop.m_cursor_ctx, loop.m_cursor_rh,
+                                        loop.m_cursor_offset, false);
   if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
   instr->add_to_varlist(loop.m_index);
@@ -7668,7 +7877,8 @@ bool LEX::sp_for_loop_outer_block_finalize(THD *thd,
     it's closed by sp_instr_cpop.
   */
   sp_instr_cclose *ic= new (thd->mem_root)
-                       sp_instr_cclose(sphead->instructions(), spcont,
+                       sp_instr_cclose(sphead->instructions(),
+                                       loop.m_cursor_ctx, loop.m_cursor_rh,
                                        loop.m_cursor_offset);
   return ic == NULL || sphead->add_instr(ic);
 }
@@ -7724,6 +7934,62 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
 }
 
 
+const sp_pcursor *LEX::find_cursor(const LEX_CSTRING *name,
+                                   uint *offset,
+                                   sp_pcontext **ctx,
+                                   const Sp_rcontext_handler **rh)
+{
+  const sp_pcursor *pcursor= NULL;
+  
+  if (spcont && (pcursor= spcont->find_cursor(name, offset, false)))
+  {
+    *ctx= spcont;
+    *rh= &sp_rcontext_handler_local;
+    return pcursor;
+  }
+
+  sp_package *pkg= sphead ? sphead->m_parent : NULL;
+  if (pkg && (pcursor= pkg->find_package_cursor(*name, offset)))
+  {
+    *ctx= pkg->get_package_pcontext();
+    *rh= &sp_rcontext_handler_package_body;
+    return pcursor;
+  }
+
+  pkg= pkg ? pkg->get_spec() : NULL;
+  if (pkg && (pcursor= pkg->find_package_cursor(*name, offset)))
+  {
+    *ctx= pkg->get_package_pcontext();
+    *rh= &sp_rcontext_handler_package_spec;
+    return pcursor;
+  }
+
+  return NULL;
+}
+
+
+const sp_pcursor *LEX::find_package_public_cursor(THD *thd,
+                                            const Lex_ident_sys_st &pkg_name,
+                                            const LEX_CSTRING *name,
+                                            uint *offset,
+                                            sp_pcontext **ctx,
+                                            const Sp_rcontext_handler **rh)
+{
+  const sp_pcursor *pcursor= NULL;
+  sp_package *pkg= find_package_spec_with_error(thd, pkg_name);
+  if (likely(pkg))
+  {
+    if (likely(pcursor= pkg->find_package_cursor(*name, offset)))
+    {
+      *ctx= pkg->get_package_pcontext();
+      *rh= new (thd->mem_root) Sp_rcontext_handler_package_public(pkg);
+      return pcursor;
+    }
+  }
+
+  return NULL;
+}
+
 /**
   Generate an SP code for an "OPEN cursor_name" statement.
   @param thd
@@ -7737,10 +8003,109 @@ bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *name,
   uint offset;
   const sp_pcursor *pcursor;
   uint param_count= parameters ? parameters->elements : 0;
-  return !(pcursor= spcont->find_cursor_with_error(name, &offset, false)) ||
-         pcursor->check_param_count_with_error(param_count) ||
-         sphead->add_open_cursor(thd, spcont, offset,
+
+  sp_pcontext *ctx= spcont;
+  const Sp_rcontext_handler *rh= NULL;
+  if (!(pcursor= find_cursor(name, &offset, &ctx, &rh)))
+  {
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+    return true;
+  }
+
+  return pcursor->check_param_count_with_error(param_count) ||
+         sphead->add_open_cursor(thd, ctx, offset, rh,
                                  pcursor->param_context(), parameters);
+}
+
+
+bool LEX::sp_open_cursor(THD *thd, const LEX_CSTRING *pkg_name,
+                      const LEX_CSTRING *name,
+                      List<sp_assignment_lex> *parameters)
+{
+  DBUG_ASSERT(pkg_name);
+  DBUG_ASSERT(name);
+
+  if (Lex_ident_routine::check_name_with_error(*pkg_name))
+    return NULL;
+
+  uint offset;
+  const sp_pcursor *pcursor;
+  uint param_count= parameters ? parameters->elements : 0;
+
+  sp_pcontext *ctx= spcont;
+  const Sp_rcontext_handler *rh= NULL;
+  if (!(pcursor= find_package_public_cursor(thd,
+                          Lex_ident_sys(thd, pkg_name),
+                          name, &offset, &ctx, &rh)))
+  {
+    const Database_qualified_name dqname(Lex_ident_db(*pkg_name), *name);
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return true;
+  }
+
+  return pcursor->check_param_count_with_error(param_count) ||
+         sphead->add_open_cursor(thd, ctx, offset, rh,
+                                 pcursor->param_context(), parameters);
+}
+
+
+bool LEX::sp_close_cursor(THD *thd, const LEX_CSTRING *name)
+{
+  uint offset;
+  const sp_pcursor *pcursor;
+  sp_pcontext *ctx= spcont;
+  const Sp_rcontext_handler *rh= NULL;
+  if (!(pcursor= find_cursor(name, &offset, &ctx, &rh)))
+  {
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
+    return true;
+  }
+
+  sp_instr_cclose *i;
+  i= new (thd->mem_root)
+    sp_instr_cclose(sphead->instructions(), ctx, rh, offset);
+  
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
+    return true;
+
+  return false;
+}
+
+
+bool LEX::sp_close_cursor(THD *thd,
+                          const LEX_CSTRING *pkg_name,
+                          const LEX_CSTRING *name)
+{
+  DBUG_ASSERT(pkg_name);
+  DBUG_ASSERT(name);
+
+  if (Lex_ident_routine::check_name_with_error(*pkg_name))
+    return NULL;
+
+  uint offset;
+  const sp_pcursor *pcursor;
+  sp_pcontext *ctx= spcont;
+  const Sp_rcontext_handler *rh= NULL;
+
+  if (!(pcursor= find_package_public_cursor(thd,
+          Lex_ident_sys(thd, pkg_name), name, &offset, &ctx, &rh)))
+  {
+    const Database_qualified_name dqname(Lex_ident_db(*pkg_name), *name);
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return true;
+  }
+
+  sp_instr_cclose *i;
+  i= new (thd->mem_root)
+    sp_instr_cclose(sphead->instructions(), ctx, rh, offset);
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
+    return true;
+  
+  return false;
 }
 
 
@@ -7988,6 +8353,54 @@ sp_head *LEX::make_sp_head_no_recursive(THD *thd, const sp_name *name,
     return make_sp_head(thd, name, sph, agg_type);
   my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
   return NULL;
+}
+
+
+sp_package *LEX::find_package_spec_with_error(THD *thd,
+                                              const Lex_ident_sys_st &pkg_name)
+{
+  sp_package *pkg= NULL;
+  if (sphead && (pkg= sphead->get_spec()) &&
+      Lex_ident_column(pkg_name).streq(pkg->m_name))
+    /*
+      We are already parsing the package spec. 
+    */
+    return pkg;
+
+  sp_head *spec_head= NULL;
+  sp_name *spname= make_sp_name(thd, pkg_name);
+  if (!spname)
+    return NULL;
+
+  if (sp_handler_package_spec.
+      sp_cache_routine_reentrant(thd, spname, &spec_head) != SP_OK)
+    return NULL;
+
+  pkg= spec_head ? spec_head->get_package() : NULL;
+  if (pkg && !pkg->m_body_package)
+  {
+    /*
+      Cache the package body too, if it exists
+    */
+    sp_head *body_head= NULL;
+    sp_handler_package_body.
+        sp_cache_routine_reentrant(thd, spname, &body_head);
+  }
+
+  return pkg;
+}
+
+
+sp_package *LEX::find_package_spec(THD *thd, const Lex_ident_sys_st &pkg_name)
+{
+  sp_package *pkg= NULL;
+
+  Package_public_parse_error_handler pkg_parse_error_handler;
+  thd->push_internal_handler(&pkg_parse_error_handler);
+  pkg= find_package_spec_with_error(thd, pkg_name);
+  thd->pop_internal_handler();
+
+  return pkg;
 }
 
 
@@ -8522,26 +8935,63 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
 }
 
 
+Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING &pkg_name,
+                                       const LEX_CSTRING *name,
+                                       plsql_cursor_attr_t attr)
+{
+  DBUG_ASSERT(name);
+
+  if (Lex_ident_routine::check_name_with_error(pkg_name))
+    return NULL;
+
+  uint offset;
+  sp_pcontext *ctx= NULL;
+  const Sp_rcontext_handler *rh= NULL;
+  if (!find_package_public_cursor(thd, Lex_ident_sys(thd, &pkg_name),
+                                  name, &offset, &ctx, &rh))
+  {
+    const Database_qualified_name dqname(Lex_ident_db(pkg_name), *name);
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return NULL;
+  }
+  
+  return make_item_plsql_cursor_attr(thd, name, attr, offset, rh);
+}
+
 Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
                                        plsql_cursor_attr_t attr)
 {
   uint offset;
-  if (unlikely(!spcont || !spcont->find_cursor(name, &offset, false)))
+  sp_pcontext *ctx= NULL;
+  const Sp_rcontext_handler *rh= NULL;
+  if (!find_cursor(name, &offset, &ctx, &rh))
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
     return NULL;
   }
+  
+  return make_item_plsql_cursor_attr(thd, name, attr, offset, rh);
+}
+
+
+Item *LEX::make_item_plsql_cursor_attr(THD *thd, const LEX_CSTRING *name,
+                                       plsql_cursor_attr_t attr,
+                                       uint offset,
+                                       const Sp_rcontext_handler *rh)
+{
+  DBUG_ASSERT(name);
+  DBUG_ASSERT(rh);
   switch (attr) {
   case PLSQL_CURSOR_ATTR_ISOPEN:
-    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_isopen(thd, name, offset, rh);
   case PLSQL_CURSOR_ATTR_FOUND:
-    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_found(thd, name, offset, rh);
   case PLSQL_CURSOR_ATTR_NOTFOUND:
-    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_notfound(thd, name, offset, rh);
   case PLSQL_CURSOR_ATTR_ROWCOUNT:
-    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset);
+    return new (thd->mem_root) Item_func_cursor_rowcount(thd, name, offset, rh);
   }
-  DBUG_ASSERT(0);
   return NULL;
 }
 
@@ -8736,7 +9186,28 @@ Item_splocal *LEX::create_item_spvar_assoc_array_element(THD *thd,
                                                List<Item> *item_list)
 {
   sp_variable *spv;
+  const Sp_rcontext_handler *rh;
   Lex_ident_sys a(thd, ca);
+
+  if (unlikely(!(spv= find_variable(&a, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
+    return NULL;
+  }
+
+  return create_item_spvar_assoc_array_element(thd, ca, spv, rh, item_list);
+}
+
+
+Item_splocal *LEX::create_item_spvar_assoc_array_element(THD *thd,
+                                              const Lex_ident_sys_st *var_ident,
+                                              sp_variable *spv,
+                                              const Sp_rcontext_handler *rh,
+                                              List<Item> *item_list)
+{
+  DBUG_ASSERT(var_ident);
+  DBUG_ASSERT(spv);
+  DBUG_ASSERT(rh);
 
   if (!item_list || item_list->elements != 1)
   {
@@ -8746,18 +9217,11 @@ Item_splocal *LEX::create_item_spvar_assoc_array_element(THD *thd,
     return NULL;
   }
 
-  const Sp_rcontext_handler *rh;
-  if (unlikely(!(spv= find_variable(&a, &rh))))
-  {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
-    return NULL;
-  }
-
   Item_args args(thd, *item_list);
   Item *key= args.arguments()[0];
 
   Item_splocal *item= new (thd->mem_root)
-                        Item_splocal_assoc_array_element(thd, rh, ca,
+                        Item_splocal_assoc_array_element(thd, rh, var_ident,
                                                          key, spv->offset,
                                                          &type_handler_null);
 #ifdef DBUG_ASSERT_EXISTS
@@ -8779,6 +9243,52 @@ Item_splocal *LEX::create_item_spvar_assoc_array_element_field(THD *thd,
   sp_variable *spv;
   Lex_ident_sys a(thd, ca);
 
+  const Sp_rcontext_handler *rh;
+  if (unlikely(!(spv= find_variable(&a, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
+    return NULL;
+  }
+
+  return create_item_spvar_assoc_array_element_field(thd, ca, spv, rh,
+                                                     item_list, cb);
+}
+
+
+Item_splocal *LEX::create_item_spvar_assoc_array_element_field(THD *thd,
+                                               const Lex_ident_cli_st *ca,
+                                               const Lex_ident_cli_st *cb,
+                                               List<Item> *item_list,
+                                               const Lex_ident_sys_st *cc)
+{
+  Lex_ident_sys a(thd, ca);
+  Lex_ident_sys b(thd, cb);
+
+  sp_variable *spv;
+  sp_package *spec;
+
+  if (unlikely(!((spv= find_package_public_variable(a, b, &spec)) &&
+                  spv->field_def.is_assoc_array())))
+  {
+    const Database_qualified_name dqname(Lex_ident_db(a), b);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return NULL;
+  }
+
+  return create_item_spvar_assoc_array_element_field(thd, &b, spv,
+            new (thd->mem_root) Sp_rcontext_handler_package_public(spec),
+            item_list, cc);
+}
+
+
+Item_splocal *LEX::create_item_spvar_assoc_array_element_field(THD *thd,
+                                              const Lex_ident_sys_st *var_ident,
+                                              sp_variable *spv,
+                                              const Sp_rcontext_handler *rh,
+                                              List<Item> *item_list,
+                                              const Lex_ident_sys_st *field)
+{
   if (item_list->elements != 1)
   {
     my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY_ELEMENT", 
@@ -8787,25 +9297,16 @@ Item_splocal *LEX::create_item_spvar_assoc_array_element_field(THD *thd,
     return NULL;
   }
 
-  const Sp_rcontext_handler *rh;
-  if (unlikely(!(spv= find_variable(&a, &rh))))
-  {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
-    return NULL;
-  }
-
   Item_args args(thd, *item_list);
   Item *key= args.arguments()[0];
 
   Item_splocal *item= new (thd->mem_root)
-        Item_splocal_assoc_array_element_field(thd, rh, ca, key,
-                                               cb, spv->offset,
+        Item_splocal_assoc_array_element_field(thd, rh, var_ident, key,
+                                               field, spv->offset,
                                                &type_handler_null);
 #ifdef DBUG_ASSERT_EXISTS
     if (item)
-    {
       item->m_sp= sphead;
-    }
 #endif
 
   return item;
@@ -8834,8 +9335,23 @@ my_var *LEX::create_outvar(THD *thd,
   sp_variable *t;
   if (unlikely(!(t= find_variable(a, &rh))))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
-    return NULL;
+    sp_package *spec;
+    Lex_ident_sys  pkg_name(thd, a);
+    if (unlikely(!(t= find_package_public_variable(pkg_name, *b, &spec))))
+    {
+      const Database_qualified_name dqname(Lex_ident_db(pkg_name), *b);
+      my_error(ER_SP_UNDECLARED_VAR, MYF(0),
+               ErrConvDQName(&dqname).lex_cstring().str);
+      return NULL;
+    }
+    
+    return result ?
+      new (thd->mem_root) my_var_sp(new (thd->mem_root)
+                                      Sp_rcontext_handler_package_public(spec),
+                                    b, t->offset,
+                                    t->type_handler(),
+                                    sphead) :
+      NULL /* EXPLAIN */;
   }
   uint row_field_offset;
   if (!t->find_row_field(a, b, &row_field_offset))
@@ -8845,6 +9361,42 @@ my_var *LEX::create_outvar(THD *thd,
                                             row_field_offset, sphead) :
     NULL /* EXPLAIN */;
 }
+
+
+my_var *LEX::create_outvar(THD *thd,
+                           const LEX_CSTRING *pkg_name,
+                           const LEX_CSTRING *var_name,
+                           const LEX_CSTRING *field_name)
+{
+  DBUG_ASSERT(pkg_name);
+  DBUG_ASSERT(var_name);
+  DBUG_ASSERT(field_name);
+
+  if (Lex_ident_routine::check_name_with_error(*pkg_name))
+    return NULL;
+
+  sp_variable *t;
+  sp_package *spec;
+  Lex_ident_sys a(thd, pkg_name);
+  if (unlikely(!(t= find_package_public_variable(a, *var_name, &spec))))
+  {
+    const Database_qualified_name dqname(Lex_ident_db(*pkg_name), *var_name);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return NULL;
+  }
+
+  uint row_field_offset;
+  if (!t->find_row_field(var_name, field_name, &row_field_offset))
+    return NULL;
+  return result ?
+    new (thd->mem_root) my_var_sp_row_field(new (thd->mem_root)
+                                      Sp_rcontext_handler_package_public(spec),
+                                      var_name, field_name, t->offset,
+                                      row_field_offset, sphead) :
+    NULL /* EXPLAIN */;
+}
+
 
 my_var *LEX::create_outvar(THD *thd,
                            const LEX_CSTRING *name,
@@ -8869,6 +9421,44 @@ my_var *LEX::create_outvar(THD *thd,
   return result ?
     new (thd->mem_root) my_var_sp_assoc_array_element(rh, name, key, t->offset,
                                                       sphead) :
+    NULL /* EXPLAIN */;
+}
+
+
+my_var *LEX::create_outvar(THD *thd,
+                           const LEX_CSTRING *pkg_name,
+                           const LEX_CSTRING *name,
+                           Item *key)
+{
+  DBUG_ASSERT(pkg_name);
+  DBUG_ASSERT(name);
+  DBUG_ASSERT(key);
+
+  if (Lex_ident_routine::check_name_with_error(*pkg_name))
+    return NULL;
+
+  sp_variable *t;
+  sp_package *spec;
+  Lex_ident_sys  a(thd, pkg_name);
+  if (unlikely(!(t= find_package_public_variable(a, *name, &spec))))
+  {
+    const Database_qualified_name dqname(Lex_ident_db(*pkg_name), *name);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return NULL;
+  }
+
+  if (unlikely(!t->field_def.is_assoc_array()))
+  {
+    my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), name->str);
+    return NULL;
+  }
+
+  return result ?
+    new (thd->mem_root) my_var_sp_assoc_array_element(new (thd->mem_root)
+                                      Sp_rcontext_handler_package_public(spec),
+                                      name, key, t->offset,
+                                      sphead) :
     NULL /* EXPLAIN */;
 }
 
@@ -8935,6 +9525,42 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
     return NULL;
   return new (thd->mem_root) Item_func_setval(thd, table, nextval, round,
                                               is_used);
+}
+
+
+Item *LEX::sp_get_assoc_array_method(THD *thd,
+                                const Lex_ident_cli_st *ca,
+                                const Lex_ident_cli_st *cb,
+                                const Lex_ident_cli_st *cc,
+                                List<Item> *args)
+{
+  DBUG_ASSERT(ca);
+  DBUG_ASSERT(cb);
+  DBUG_ASSERT(cc);
+
+  if (Lex_ident_routine::check_name_with_error(*ca))
+    return NULL;
+
+  Lex_ident_sys name(thd, cb);
+  sp_package *spec;
+  sp_variable *spv= find_package_public_variable(*ca, name, &spec);
+  if (!spv)
+  {
+    const Database_qualified_name dqname(Lex_ident_db(*ca), *cb);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return NULL;
+  }
+  
+  Item_splocal *array= new (thd->mem_root) Item_splocal(thd,
+                          new (thd->mem_root)
+                            Sp_rcontext_handler_package_public(spec),
+                          &name, spv->offset,
+                          spv->type_handler());
+  if (unlikely(!array))
+    return NULL;
+  
+  return sp_get_assoc_array_method(thd, array, cc, args);
 }
 
 
@@ -9015,6 +9641,23 @@ Item *LEX::create_item_ident(THD *thd,
         return sp_get_assoc_array_method(thd, ca, cb, NULL);
   }
 
+  sp_package *spec;
+  if ((spv= find_package_public_variable(a, b, &spec)))
+  {
+    Item_sp_variable *item= new (thd->mem_root)
+                              Item_splocal(thd,
+                              new (thd->mem_root)
+                                Sp_rcontext_handler_package_public(spec),
+                              cb,
+                              spv->offset,
+                              spv->type_handler());
+#ifdef DBUG_ASSERT_EXISTS
+      if (item)
+        item->m_sp= spec;
+#endif
+      return item;
+  }
+
   if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)
   {
     if (Lex_ident_column(b).streq("NEXTVAL"_Lex_ident_column))
@@ -9024,6 +9667,45 @@ Item *LEX::create_item_ident(THD *thd,
   }
 
   return create_item_ident_nospvar(thd, &a, &b);
+}
+
+
+Item *LEX::create_item_ident(THD *thd,
+                        const Lex_ident_cli_st *ca,
+                        const Lex_ident_cli_st *cb,
+                        const Lex_ident_cli_st *cc)
+{
+  Lex_ident_sys b(thd, cb), c(thd, cc);
+  if (b.is_null() || c.is_null())
+    return NULL;
+  if (ca->pos() == cb->pos())  // SELECT .t1.col1
+  {
+    DBUG_ASSERT(ca->length == 0);
+    Lex_ident_sys none;
+    return create_item_ident(thd, &none, &b, &c);
+  }
+  Lex_ident_sys a(thd, ca);
+
+  sp_package *spec;
+  sp_variable *spv;
+  if ((spv= find_package_public_variable(a, b, &spec)))
+  {
+    if (spv->field_def.is_row() ||
+        spv->field_def.is_table_rowtype_ref() ||
+        spv->field_def.is_cursor_rowtype_ref())
+    {
+      const char *start= ca->pos();
+      const char *end= cc->end();
+      return create_item_spvar_row_field(thd,
+        new (thd->mem_root) Sp_rcontext_handler_package_public(spec),
+        &b, &c, spv, start, end);
+    }
+    else if ((thd->variables.sql_mode & MODE_ORACLE) &&
+              spv->field_def.is_assoc_array())
+        return sp_get_assoc_array_method(thd, ca, cb, cc, NULL);
+  }
+
+  return a.is_null() ? NULL : create_item_ident(thd, &a, &b, &c);
 }
 
 
@@ -9265,6 +9947,15 @@ bool LEX::set_variable(const Lex_ident_sys_st *name1,
 
   if (is_trigger_new_or_old_reference(name1))
     return set_trigger_field(name1, name2, item, expr_str);
+  
+  sp_package *spec= NULL;
+  if (spcont && (spv= find_package_public_variable(*name1, *name2,
+                                                   &ctx, &spec)))
+    return sphead->set_local_variable(thd, ctx,
+                                      new (thd->mem_root)
+                                        Sp_rcontext_handler_package_public(spec),
+                                      spv, item, this, true,
+                                      expr_str);
 
   return set_system_variable(thd, option_type, name1, name2, item);
 }
@@ -9917,13 +10608,47 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
   uint offset;
   sp_instr_cfetch *i;
 
-  if (!spcont->find_cursor(name, &offset, false))
+  sp_pcontext *ctx= NULL;
+  const Sp_rcontext_handler *rh= NULL;
+  if (!find_cursor(name, &offset, &ctx, &rh))
   {
     my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name->str);
     return true;
   }
   i= new (thd->mem_root)
-    sp_instr_cfetch(sphead->instructions(), spcont, offset,
+    sp_instr_cfetch(sphead->instructions(), ctx, rh, offset,
+                    !(thd->variables.sql_mode & MODE_ORACLE));
+  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
+    return true;
+  return false;
+}
+
+
+bool LEX::sp_add_cfetch(THD *thd,
+                        const LEX_CSTRING *pkg_name,
+                        const LEX_CSTRING *name)
+{
+  DBUG_ASSERT(pkg_name && name);
+
+  if (Lex_ident_routine::check_name_with_error(*pkg_name))
+    return NULL;
+
+  uint offset;
+  sp_instr_cfetch *i;
+
+  sp_pcontext *ctx= NULL;
+  const Sp_rcontext_handler *rh= NULL;
+  if (!find_package_public_cursor(thd, Lex_ident_sys(thd, pkg_name),
+                                 name, &offset, &ctx, &rh))
+  {
+    const Database_qualified_name dqname(Lex_ident_db(*pkg_name), *name);
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return true;
+  }
+
+  i= new (thd->mem_root)
+    sp_instr_cfetch(sphead->instructions(), ctx, rh, offset,
                     !(thd->variables.sql_mode & MODE_ORACLE));
   if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
     return true;
@@ -10084,6 +10809,7 @@ sp_package *LEX::create_package_start(THD *thd,
                                       const st_sp_chistics &chistics)
 {
   sp_package *pkg;
+  sp_head *spec= NULL;
 
   if (unlikely(sphead))
   {
@@ -10109,7 +10835,6 @@ sp_package *LEX::create_package_start(THD *thd,
            CALL db.pkg.p; -- p is a known (public or private) package routine
            CALL db.p;     -- p is not a known package routine
     */
-    sp_head *spec;
     int ret= sp_handler_package_spec.
                sp_cache_routine_reentrant(thd, name_arg, &spec);
     if (unlikely(!spec))
@@ -10130,6 +10855,12 @@ sp_package *LEX::create_package_start(THD *thd,
                         make_qname_casedn_part1(pkg->get_main_mem_root())).str)
     return NULL;
   pkg->set_c_chistics(chistics);
+  if (spec)
+  {
+    pkg->set_spec(spec->get_package());
+    spec->get_package()->set_body(pkg);
+  }
+
   sphead= pkg;
   return pkg;
 }
@@ -12734,6 +13465,61 @@ bool LEX::sp_if_after_statements(THD *thd)
 }
 
 
+sp_condition_value *LEX::find_declared_or_predefined_condition(THD *thd,
+                                                const LEX_CSTRING *name) const
+{
+  sp_condition_value *cond= NULL;
+  if (spcont && (cond= spcont->find_condition(name, false)))
+    return cond;
+  
+  sp_package *pkg= sphead ? sphead->m_parent : NULL;
+  if (pkg)
+  {
+    if ((cond= pkg->find_package_condition(*name)))
+      return cond;
+  }
+  
+  pkg= pkg ? sphead->get_spec() : NULL;
+  if (pkg)
+  {
+    if ((cond= pkg->find_package_condition(*name)))
+      return cond;
+  }
+
+  if (thd->variables.sql_mode & MODE_ORACLE && spcont)
+    return spcont->find_predefined_condition(name);
+  return NULL;
+}
+
+
+sp_condition_value *LEX::find_package_public_condition(THD *thd,
+                                              const Lex_ident_sys_st &pkg_name,
+                                              const LEX_CSTRING *name)
+{
+  DBUG_ASSERT(name);
+  if (Lex_ident_routine::check_name_with_error(pkg_name))
+    return NULL;
+
+  sp_condition_value *cond= NULL;
+  sp_package *pkg= find_package_spec_with_error(thd, pkg_name);
+  if (likely(pkg))
+  {
+    if (likely(cond= pkg->find_package_condition(*name)))
+      return cond;
+    else
+    {
+      const Database_qualified_name dqname(Lex_ident_db(pkg_name), *name);
+      my_error(ER_SP_COND_MISMATCH, MYF(0),
+               ErrConvDQName(&dqname).lex_cstring().str);
+    }
+  }
+  else
+    return NULL;
+
+  return NULL;
+}
+
+
 sp_condition_value *LEX::stmt_signal_value(const Lex_ident_sys_st &ident)
 {
   sp_condition_value *cond;
@@ -12743,10 +13529,43 @@ sp_condition_value *LEX::stmt_signal_value(const Lex_ident_sys_st &ident)
     my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
     return NULL;
   }
-  cond= spcont->find_declared_or_predefined_condition(thd, &ident);
+  cond= find_declared_or_predefined_condition(thd, &ident);
   if (unlikely(cond == NULL))
   {
     my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
+    return NULL;
+  }
+  bool bad= thd->variables.sql_mode & MODE_ORACLE ?
+            !cond->has_sql_state() :
+            cond->type != sp_condition_value::SQLSTATE;
+  if (unlikely(bad))
+  {
+    my_error(ER_SIGNAL_BAD_CONDITION_TYPE, MYF(0));
+    return NULL;
+  }
+  return cond;
+}
+
+
+sp_condition_value *LEX::stmt_signal_value(const Lex_ident_sys_st &pkg_ident,
+                                           const Lex_ident_sys_st &ident)
+{
+  if (Lex_ident_routine::check_name_with_error(pkg_ident))
+    return NULL;
+
+  const Database_qualified_name dqname(Lex_ident_db(pkg_ident), ident);
+  sp_condition_value *cond;
+  if (unlikely(spcont == NULL))
+  {
+    my_error(ER_SP_COND_MISMATCH, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
+    return NULL;
+  }
+
+  if (unlikely(!(cond= find_package_public_condition(thd, pkg_ident, &ident))))
+  {
+    my_error(ER_SP_COND_MISMATCH, MYF(0),
+             ErrConvDQName(&dqname).lex_cstring().str);
     return NULL;
   }
   bool bad= thd->variables.sql_mode & MODE_ORACLE ?

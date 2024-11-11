@@ -1612,3 +1612,78 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+
+--echo #
+--echo # ASSOC ARRAY within package
+--echo #
+--echo #
+--echo # ASSOC ARRAY with SCALAR element
+--echo #
+DELIMITER $$;
+CREATE PACKAGE pkg1
+AS
+  FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+  PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64));
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+  TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+  colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+  FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+  AS
+  BEGIN
+    RETURN colors(idx);
+  END;
+  PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64))
+  AS
+  BEGIN
+    colors(idx):= color;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT pkg1.get_color('1') FROM DUAL;
+CALL pkg1.set_color('1', 'Green');
+SELECT pkg1.get_color('1') FROM DUAL;
+
+DROP PACKAGE pkg1;
+
+--echo #
+--echo # ASSOC ARRAY within routine
+--echo #
+--echo #
+--echo # ASSOC ARRAY with SCALAR element
+--echo #
+DELIMITER $$;
+CREATE PACKAGE pkg1
+AS
+  FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64);
+  PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64));
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+  TYPE colors_t IS TABLE OF VARCHAR2(64) INDEX BY VARCHAR2(20);
+  FUNCTION get_color(idx VARCHAR2(20)) RETURN VARCHAR2(64)
+  AS
+    colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+  BEGIN
+    RETURN colors(idx);
+  END;
+  PROCEDURE set_color(idx VARCHAR2(20), color VARCHAR2(64))
+  AS
+    colors colors_t:= colors_t('1' => 'Orange', '2' => 'Red', '3' => 'Blue');
+  BEGIN
+    colors(idx):= color;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT pkg1.get_color('1') FROM DUAL;
+CALL pkg1.set_color('1', 'Green');
+SELECT pkg1.get_color('1') FROM DUAL;
+
+DROP PACKAGE pkg1;

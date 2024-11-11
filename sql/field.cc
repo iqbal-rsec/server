@@ -34,6 +34,7 @@
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
 #include "sp_rcontext.h"
+#include "sp_head.h"
 
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024
@@ -2974,8 +2975,8 @@ bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
       if (!key_copy)
         goto error;
 
-      Assoc_array_data *data = new (thd->mem_root)
-                               Assoc_array_data(key_copy, element);
+      Assoc_array_data *data= new (thd->mem_root)
+                                Assoc_array_data(key_copy, element);
       tree_insert(&m_tree, data, 0, (void *)key_charset());
 
       set_notnull();
@@ -3072,7 +3073,7 @@ String *Field_assoc_array::copy_and_convert_key(THD *thd, const String *key) con
   auto key_def= m_def->m_key_def;
   if (key_def->type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
   {
-    if (key_copy->copy(key, key_def->charset, &errors))
+    if (key_copy->copy(key, key_charset(), &errors))
     {
       delete key_copy;
       return NULL;

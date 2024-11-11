@@ -415,6 +415,7 @@ typedef enum monotonicity_info
 /*************************************************************************/
 
 class sp_rcontext;
+class sp_package;
 
 /**
   A helper class to collect different behavior of various kinds of SP variables:
@@ -448,6 +449,8 @@ public:
     depending on the SP variable kind.
   */
   virtual sp_rcontext *get_rcontext(sp_rcontext *ctx) const= 0;
+
+  virtual bool is_local() const { return false; }
 };
 
 
@@ -456,12 +459,35 @@ class Sp_rcontext_handler_local: public Sp_rcontext_handler
 public:
   const LEX_CSTRING *get_name_prefix() const override;
   sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
+  bool is_local() const override { return true; }
 };
 
 
 class Sp_rcontext_handler_package_body: public Sp_rcontext_handler
 {
 public:
+  const LEX_CSTRING *get_name_prefix() const override;
+  sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
+  bool is_local() const override { return true; }
+};
+
+
+class Sp_rcontext_handler_package_spec: public Sp_rcontext_handler
+{
+public:
+  const LEX_CSTRING *get_name_prefix() const override;
+  sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
+};
+
+
+class Sp_rcontext_handler_package_public: public Sp_rcontext_handler,
+                                          public Sql_alloc
+{
+private:
+  sp_package *m_package;
+public:
+  Sp_rcontext_handler_package_public(sp_package *package)
+   : m_package(package) {}
   const LEX_CSTRING *get_name_prefix() const override;
   sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
 };
@@ -474,6 +500,9 @@ extern MYSQL_PLUGIN_IMPORT
 extern MYSQL_PLUGIN_IMPORT
   Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
 
+
+extern MYSQL_PLUGIN_IMPORT
+  Sp_rcontext_handler_package_spec sp_rcontext_handler_package_spec;
 
 
 class Item_equal;

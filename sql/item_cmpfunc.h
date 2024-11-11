@@ -3696,8 +3696,11 @@ public:
 class Item_func_cursor_bool_attr: public Item_bool_func, public Cursor_ref
 {
 public:
-  Item_func_cursor_bool_attr(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_bool_func(thd), Cursor_ref(name, offset)
+  Item_func_cursor_bool_attr(THD *thd,
+                             const LEX_CSTRING *name,
+                             uint offset,
+                             const Sp_rcontext_handler *rh)
+   :Item_bool_func(thd), Cursor_ref(name, offset, rh)
   { }
   bool check_vcol_func_processor(void *arg) override
   {
@@ -3713,8 +3716,11 @@ public:
 class Item_func_cursor_isopen: public Item_func_cursor_bool_attr
 {
 public:
-  Item_func_cursor_isopen(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset) { }
+  Item_func_cursor_isopen(THD *thd,
+                          const LEX_CSTRING *name,
+                          uint offset,
+                          const Sp_rcontext_handler *rh)
+   :Item_func_cursor_bool_attr(thd, name, offset, rh) { }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("%ISOPEN") };
@@ -3729,8 +3735,11 @@ public:
 class Item_func_cursor_found: public Item_func_cursor_bool_attr
 {
 public:
-  Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset)
+  Item_func_cursor_found(THD *thd,
+                         const LEX_CSTRING *name,
+                         uint offset,
+                         const Sp_rcontext_handler *rh)
+   :Item_func_cursor_bool_attr(thd, name, offset, rh)
   {
     set_maybe_null();
   }
@@ -3748,8 +3757,11 @@ public:
 class Item_func_cursor_notfound: public Item_func_cursor_bool_attr
 {
 public:
-  Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
-   :Item_func_cursor_bool_attr(thd, name, offset)
+  Item_func_cursor_notfound(THD *thd,
+                            const LEX_CSTRING *name,
+                            uint offset,
+                            const Sp_rcontext_handler *rh)
+   :Item_func_cursor_bool_attr(thd, name, offset, rh)
   {
     set_maybe_null();
   }

@@ -771,3 +771,72 @@ SELECT rec0.a || rec0.b AS r0, rec1.a || rec1.b AS t1, rec2.a || rec2.b AS r2; E
 $$
 r0	t1	r2
 1a	1a	1a
+#
+# Private RECORD type usage within BODY
+#
+CREATE PACKAGE pkg1
+AS
+FUNCTION get_dept_id RETURN INT;
+PROCEDURE set_dept_id(new_dept_id INT);
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+PROCEDURE set_dept_id(new_dept_id INT)
+AS
+BEGIN
+dept_rec.dept_id:= new_dept_id;
+END;
+END;
+$$
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+11
+CALL pkg1.set_dept_id(5);
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+5
+DROP PACKAGE pkg1;
+#
+# Private RECORD type usage within BODY
+#
+CREATE PACKAGE pkg1
+AS
+FUNCTION get_dept_id RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1
+AS
+TYPE DeptRecTyp IS RECORD (
+dept_id    NUMBER(4),
+dept_name  VARCHAR2(30),
+mgr_id     NUMBER(6),
+loc_id     NUMBER(4)
+);
+FUNCTION get_dept_id RETURN INT
+AS
+BEGIN
+DECLARE
+dept_rec DeptRecTyp:= DeptRecTyp(11,'a',201,1700);
+BEGIN
+RETURN dept_rec.dept_id;
+END;
+END;
+END;
+$$
+SELECT pkg1.get_dept_id() FROM DUAL;
+pkg1.get_dept_id()
+11
+DROP PACKAGE pkg1;

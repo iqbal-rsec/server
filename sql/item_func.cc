@@ -7185,7 +7185,8 @@ void Cursor_ref::print_func(String *str, const LEX_CSTRING &func_name)
 sp_cursor *Cursor_ref::get_open_cursor_or_error()
 {
   THD *thd= current_thd;
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor_offset);
+  sp_cursor *c= m_rh->get_rcontext(thd->spcont)->
+    get_cursor(m_cursor_offset);
   DBUG_ASSERT(c);
   if (!c/*safety*/ || !c->is_open())
   {
@@ -7199,7 +7200,9 @@ sp_cursor *Cursor_ref::get_open_cursor_or_error()
 
 bool Item_func_cursor_isopen::val_bool()
 {
-  sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
+  THD *thd= current_thd;
+  sp_cursor *c= m_rh->get_rcontext(thd->spcont)->
+    get_cursor(m_cursor_offset);
   DBUG_ASSERT(c != NULL);
   return c ? c->is_open() : 0;
 }

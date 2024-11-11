@@ -1297,11 +1297,36 @@ public:
 }; // class sp_instr_hreturn : public sp_instr_jump
 
 
+class sp_instr_cursor_with_context
+{
+public:
+  sp_instr_cursor_with_context(const Sp_rcontext_handler *rh_arg)
+    : m_rcontext_handler(rh_arg)
+  {}
+
+  void set_rcontext_handler(const Sp_rcontext_handler *rh)
+  {
+    m_rcontext_handler= rh;
+  }
+
+  sp_rcontext *get_rcontext(THD *thd) const
+  {
+    if (m_rcontext_handler)
+      return m_rcontext_handler->get_rcontext(thd->spcont);
+    return thd->spcont;
+  }
+
+protected:
+  const Sp_rcontext_handler *m_rcontext_handler;
+};
+
+
 /**
   This is DECLARE CURSOR
 */
 
-class sp_instr_cpush : public sp_lex_instr, public sp_cursor
+class sp_instr_cpush : public sp_lex_instr, public sp_cursor,
+                       public sp_instr_cursor_with_context
 {
   sp_instr_cpush(const sp_instr_cpush &); /**< Prevent use of these */
   void operator=(sp_instr_cpush &);
@@ -1309,6 +1334,7 @@ class sp_instr_cpush : public sp_lex_instr, public sp_cursor
 public:
   sp_instr_cpush(uint ip, sp_pcontext *ctx, sp_lex_cursor *lex, uint offset)
     : sp_lex_instr(ip, ctx, lex, true),
+      sp_instr_cursor_with_context(NULL),
       m_cursor(offset),
       m_metadata_changed(false),
       m_cursor_stmt(lex->get_expr_str())
@@ -1422,14 +1448,16 @@ public:
 }; // class sp_instr_cpop : public sp_instr
 
 
-class sp_instr_copen : public sp_instr
+class sp_instr_copen : public sp_instr, public sp_instr_cursor_with_context
 {
   sp_instr_copen(const sp_instr_copen &); /**< Prevent use of these */
   void operator=(sp_instr_copen &);
 
 public:
-  sp_instr_copen(uint ip, sp_pcontext *ctx, uint c)
+  sp_instr_copen(uint ip, sp_pcontext *ctx,
+                 const Sp_rcontext_handler *rh, uint c)
     : sp_instr(ip, ctx),
+      sp_instr_cursor_with_context(rh),
       m_cursor(c)
   {}
 
@@ -1453,7 +1481,8 @@ public:
   from the LEX containing the cursor SELECT statement.
 */
 
-class sp_instr_cursor_copy_struct: public sp_lex_instr
+class sp_instr_cursor_copy_struct: public sp_lex_instr,
+                                   public sp_instr_cursor_with_context
 {
   /**< Prevent use of these */
   sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
@@ -1469,8 +1498,10 @@ class sp_instr_cursor_copy_struct: public sp_lex_instr
 
 public:
   sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
+                              const Sp_rcontext_handler *cursor_rh,
                               sp_lex_cursor *lex, uint voffs)
     : sp_lex_instr(ip, ctx, lex, false),
+      sp_instr_cursor_with_context(cursor_rh),
       m_cursor(coffs),
       m_var(voffs),
       m_valid(true),
@@ -1522,14 +1553,17 @@ public:
 };
 
 
-class sp_instr_cclose : public sp_instr
+class sp_instr_cclose : public sp_instr,
+                        public sp_instr_cursor_with_context
 {
   sp_instr_cclose(const sp_instr_cclose &); /**< Prevent use of these */
   void operator=(sp_instr_cclose &);
 
 public:
-  sp_instr_cclose(uint ip, sp_pcontext *ctx, uint c)
+  sp_instr_cclose(uint ip, sp_pcontext *ctx,
+                  const Sp_rcontext_handler *rh, uint c)
     : sp_instr(ip, ctx),
+      sp_instr_cursor_with_context(rh),
       m_cursor(c)
   {}
 
@@ -1548,14 +1582,17 @@ public:
 }; // class sp_instr_cclose : public sp_instr
 
 
-class sp_instr_cfetch : public sp_instr
+class sp_instr_cfetch : public sp_instr, public sp_instr_cursor_with_context
 {
   sp_instr_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
   void operator=(sp_instr_cfetch &);
 
 public:
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx,
+                  const Sp_rcontext_handler *rh,
+                  uint c, bool error_on_no_data)
     : sp_instr(ip, ctx),
+      sp_instr_cursor_with_context(rh),
       m_cursor(c),
       m_error_on_no_data(error_on_no_data)
   {

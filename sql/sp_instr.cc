@@ -1098,7 +1098,11 @@ sp_rcontext *sp_instr_set::get_rcontext(THD *thd) const
 int
 sp_instr_set::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable(thd, m_offset, &m_value);
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    return 1;
+
+  int res= rctx->set_variable(thd, m_offset, &m_value);
   *nextp = m_ip+1;
   return res;
 }
@@ -1137,9 +1141,13 @@ sp_instr_set::print(String *str)
 int
 sp_instr_set_row_field::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_row_field(thd, m_offset,
-                                                     m_field_offset,
-                                                     &m_value);
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    return 1;
+
+  int res= rctx->set_variable_row_field(thd, m_offset,
+                                            m_field_offset,
+                                            &m_value);
   *nextp= m_ip + 1;
   return res;
 }
@@ -1184,9 +1192,13 @@ sp_instr_set_row_field::print(String *str)
 int
 sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_row_field_by_name(thd, m_offset,
-                                                             m_field_name,
-                                                             &m_value);
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    return 1;
+
+  int res= rctx->set_variable_row_field_by_name(thd, m_offset,
+                                                    m_field_name,
+                                                    &m_value);
   *nextp= m_ip + 1;
   return res;
 }
@@ -1229,9 +1241,13 @@ sp_instr_set_row_field_by_name::print(String *str)
 int
 sp_instr_set_assoc_array_by_key::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_assoc_array_by_key(thd, m_offset,
-                                                              m_key,
-                                                              &m_value);
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    return 1;
+
+  int res= rctx->set_variable_assoc_array_by_key(thd, m_offset,
+                                                 m_key,
+                                                 &m_value);
   *nextp= m_ip + 1;
   return res;
 }
@@ -1267,12 +1283,16 @@ sp_instr_set_assoc_array_by_key::print(String *str)
 int
 sp_instr_set_assoc_array_field_by_key::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_assoc_array_field_by_key(thd,
-                                                              m_var_name,
-                                                              m_offset,
-                                                              m_key,
-                                                              m_field_name,
-                                                              &m_value);
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    return 1;
+
+  int res= rctx->set_variable_assoc_array_field_by_key(thd,
+                                                       m_var_name,
+                                                       m_offset,
+                                                       m_key,
+                                                       m_field_name,
+                                                       &m_value);
   *nextp= m_ip + 1;
   return res;
 }
@@ -1811,7 +1831,12 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 
   sp_cursor::reset(thd);
   m_lex_keeper.disable_query_cache();
-  thd->spcont->push_cursor(this);
+
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    DBUG_RETURN(true);
+
+  rctx->push_cursor(this);
 
   *nextp= m_ip+1;
 
@@ -1822,8 +1847,50 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 int
 sp_instr_cpush::exec_core(THD *thd, uint *nextp)
 {
-  sp_cursor *c = thd->spcont->get_cursor(m_cursor);
-  return c ? c->open(thd) : true;
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    return true;
+
+  sp_cursor *c= rctx->get_cursor(m_cursor);
+  if (c)
+  {
+    /*
+      Backup the sp_rcontext and set it to the cursor's sp_rcontext.
+      
+      We need to do this since during parsing there is no way to know which
+      context handler to use for the cursor's parameters,
+      so we leave the context handler local for any parameters used in
+      in conditions etc and instead set context handler here.
+     */
+    sp_rcontext *save_spcont= thd->spcont;
+    thd->spcont= rctx;
+
+    /*
+      We need to reparse the cursor query, so we need to unprotect the
+      statement memroot.
+    */
+#ifdef PROTECT_STATEMENT_MEMROOT
+    const bool read_only_mem_root= thd->stmt_arena->mem_root->flags &
+                                    ROOT_FLAG_READ_ONLY;
+    thd->stmt_arena->mem_root->flags &= ~ROOT_FLAG_READ_ONLY;    
+#endif
+
+    if (c->open(thd))
+    {
+      thd->spcont= save_spcont;
+      return true;
+    }
+
+#ifdef PROTECT_STATEMENT_MEMROOT
+    if (read_only_mem_root)
+      thd->stmt_arena->mem_root->flags |= ROOT_FLAG_READ_ONLY;
+#endif
+
+    /* Restore the sp_rcontext */
+    thd->spcont= save_spcont;
+    return false;
+  }
+  return true;
 }
 
 void
@@ -1891,13 +1958,16 @@ PSI_statement_info sp_instr_copen::psi_info=
 int
 sp_instr_copen::execute(THD *thd, uint *nextp)
 {
+  DBUG_ENTER("sp_instr_copen::execute");
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    DBUG_RETURN(true);
   /*
     We don't store a pointer to the cursor in the instruction to be
     able to reuse the same instruction among different threads in future.
   */
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor);
+  sp_cursor *c= rctx->get_cursor(m_cursor);
   int res;
-  DBUG_ENTER("sp_instr_copen::execute");
 
   if (! c)
     res= -1;
@@ -1931,6 +2001,7 @@ sp_instr_copen::execute(THD *thd, uint *nextp)
       DECLARE CURSOR occurred before the statement OPEN cursor_name.
     */
     DBUG_ASSERT(cpush_instr);
+    cpush_instr->set_rcontext_handler(m_rcontext_handler);
     res= lex_keeper->cursor_reset_lex_and_exec_core(thd, nextp, false,
                                                     cpush_instr);
 
@@ -1972,9 +2043,14 @@ PSI_statement_info sp_instr_cclose::psi_info=
 int
 sp_instr_cclose::execute(THD *thd, uint *nextp)
 {
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor);
-  int res;
   DBUG_ENTER("sp_instr_cclose::execute");
+
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    DBUG_RETURN(true);
+
+  sp_cursor *c= rctx->get_cursor(m_cursor);
+  int res;
 
   if (! c)
     res= -1;
@@ -2017,10 +2093,14 @@ PSI_statement_info sp_instr_cfetch::psi_info=
 int
 sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
-  sp_cursor *c= thd->spcont->get_cursor(m_cursor);
+  DBUG_ENTER("sp_instr_cfetch::execute");
+  sp_rcontext *rctx= get_rcontext(thd);
+  if (!rctx)
+    DBUG_RETURN(true);
+
+  sp_cursor *c= rctx->get_cursor(m_cursor);
   int res;
   Query_arena backup_arena;
-  DBUG_ENTER("sp_instr_cfetch::execute");
 
   res= c ? c->fetch(thd, &m_varlist, m_error_on_no_data) : -1;
 
@@ -2142,10 +2222,18 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   */
   if (!row->arguments())
   {
+    sp_rcontext *cursor_spcont= get_rcontext(thd);
+    if (!cursor_spcont)
+      DBUG_RETURN(1);
+
+    sp_rcontext *save_spcont= thd->spcont;
+    thd->spcont= cursor_spcont;
     sp_cursor tmp(thd, true);
     // Open the cursor without copying data
     if (!(ret= tmp.open(thd)))
     {
+      thd->spcont= save_spcont;
+
       Row_definition_list defs;
       /*
         Create row elements on the caller arena.
@@ -2168,6 +2256,7 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
       thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
       tmp.close(thd);
     }
+    thd->spcont= save_spcont;
   }
   *nextp= m_ip + 1;
   DBUG_RETURN(ret);
