@@ -9680,7 +9680,8 @@ Item *LEX::create_item_ident(THD *thd,
   }
 
   sp_package *spec;
-  if ((spv= find_package_public_variable(a, b, &spec)))
+  if ((thd->variables.sql_mode & MODE_ORACLE) &&
+      (spv= find_package_public_variable(a, b, &spec)))
   {
     Item_sp_variable *item= new (thd->mem_root)
                               Item_splocal(thd,
@@ -9726,7 +9727,8 @@ Item *LEX::create_item_ident(THD *thd,
 
   sp_package *spec;
   sp_variable *spv;
-  if ((spv= find_package_public_variable(a, b, &spec)))
+  if ((thd->variables.sql_mode & MODE_ORACLE) &&
+       (spv= find_package_public_variable(a, b, &spec)))
   {
     if (spv->field_def.is_row() ||
         spv->field_def.is_table_rowtype_ref() ||
