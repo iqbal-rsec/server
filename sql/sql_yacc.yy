@@ -13531,14 +13531,15 @@ select_outvar:
             if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3)) && Lex->result))
               MYSQL_YYABORT;
           }
-        | ident '.' ident '.' ident
-          {
-            if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3, &$5)) && Lex->result))
-              MYSQL_YYABORT;
-          }
         | ident '(' expr ')'
           {
             if (unlikely(!($$= Lex->create_outvar(thd, &$1, $3)) && Lex->result))
+              MYSQL_YYABORT;
+          }
+%ifdef ORACLE
+        | ident '.' ident '.' ident
+          {
+            if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3, &$5)) && Lex->result))
               MYSQL_YYABORT;
           }
         | ident '.' ident '(' expr ')'
@@ -13546,6 +13547,7 @@ select_outvar:
             if (unlikely(!($$= Lex->create_outvar(thd, &$1, &$3, $5)) && Lex->result))
               MYSQL_YYABORT;
           }
+%endif
         ;
 
 into:
@@ -20159,10 +20161,16 @@ package_specification_declare_section:
         | package_specification_declare_section_list
         ;
 
+%ifdef ORACLE
 package_specification_item_declaration:
           package_implementation_item_declaration
         | package_specification_routine_declaration { $$.init(); }
         ;
+%else
+        package_specification_item_declaration:
+          package_specification_routine_declaration { $$.init(); }
+        ;
+%endif
 
 package_specification_routine_declaration:
           FUNCTION_SYM package_specification_function ';'

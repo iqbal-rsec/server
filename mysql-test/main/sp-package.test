@@ -228,6 +228,7 @@ DROP TABLE t1;
 --echo # Public package variables
 --echo #
 DELIMITER /;
+--error ER_PARSE_ERROR
 CREATE OR REPLACE PACKAGE pkg
   DECLARE a INT DEFAULT 11;
   DECLARE b INT DEFAULT 10;
@@ -237,70 +238,12 @@ CREATE OR REPLACE PACKAGE pkg
   PROCEDURE p3();
 END;
 /
-CREATE OR REPLACE PACKAGE BODY pkg
-  -- shadowing public var c, initialize with public var a
-  DECLARE c INT DEFAULT a;
-  -- routine declarations
-  PROCEDURE p1()
-  BEGIN
-    SELECT a;
-  END;
-  PROCEDURE p2()
-  BEGIN
-    SELECT c;
-  END;
-  PROCEDURE p3()
-  BEGIN
-    SELECT d.b;
-  END;
-  -- initialization section
-  SET a=a-b;
-END;
-/
 DELIMITER ;/
-SELECT pkg.a;
-CALL pkg.p1();
-CALL pkg.p2();
+
+--error ER_UNKNOWN_TABLE
 SELECT pkg.a;
 --error ER_UNKNOWN_TABLE
-SELECT pkg.c;
 SELECT pkg.d.a;
-CALL pkg.p3();
-DROP PACKAGE pkg;
-
---echo #
---echo # Public package variables, shadowing
---echo #
-DELIMITER /;
-CREATE OR REPLACE PACKAGE pkg
-  DECLARE a INT DEFAULT 11;
-  DECLARE b INT DEFAULT 10;
-  PROCEDURE p1();
-END;
-/
-CREATE OR REPLACE PACKAGE BODY pkg
-  DECLARE a INT DEFAULT 11;
-  -- routine declarations
-  PROCEDURE p1()
-  BEGIN
-    SELECT a;
-  END;
-  -- initialization section
-  SET a=a-b;
-END;
-/
-DELIMITER ;/
-CALL pkg.p1();
-SELECT pkg.a;
-
-DELIMITER /;
-BEGIN NOT ATOMIC
-  SET pkg.a=pkg.a*2;
-  SELECT pkg.a;
-END;
-/
-DELIMITER ;/
-DROP PACKAGE pkg;
 
 
 --echo #
