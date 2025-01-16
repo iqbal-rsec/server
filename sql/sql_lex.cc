@@ -9606,18 +9606,22 @@ bool LEX::call_statement_start(THD *thd,
                                const Lex_ident_sys_st *proc)
 {
   DBUG_ASSERT(db->str);
-  Identifier_chain2 q_pkg_proc(*pkg, *proc);
+
+  Lex_ident_sys_st r_db= *db, r_pkg= *pkg;
+  sp_handler_synonym.resolve_synonym(thd, r_db, r_pkg);
+
+  Identifier_chain2 q_pkg_proc(r_pkg, *proc);
   sp_name *spname;
 
   sql_command= SQLCOM_CALL;
 
-  const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(*db);
+  const Lex_ident_db_normalized dbn= thd->to_ident_db_normalized_with_error(r_db);
   if (!dbn.str ||
-      Lex_ident_routine::check_name_with_error(*pkg) ||
+      Lex_ident_routine::check_name_with_error(r_pkg) ||
       Lex_ident_routine::check_name_with_error(*proc))
     return true;
 
-  Database_qualified_name q_db_pkg(dbn, *pkg);
+  Database_qualified_name q_db_pkg(dbn, r_pkg);
 
   // Concat `pkg` and `name` to `pkg.name`
   LEX_CSTRING pkg_dot_proc;
@@ -10033,6 +10037,9 @@ Item *LEX::make_item_func_call_generic(THD *thd,
                                        List<Item> *args)
 {
   Lex_ident_sys db(thd, cdb), pkg(thd, cpkg), func(thd, cfunc);
+
+  sp_handler_synonym.resolve_synonym(thd, db, pkg);
+
   Identifier_chain2 q_pkg_func(pkg, func);
   sp_name *qname;
 
@@ -11110,6 +11117,48 @@ bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
   return LEX::sp_proc_stmt_statement_finalize_buf(thd, qbuf);
 }
 
+
+bool LEX::create_synonym_finalize(THD *thd, DDL_options_st options,
+                                  const sp_name &target,
+                                  bool is_public, const char *cpp_body_end)
+{
+  DBUG_ASSERT(sphead);
+  if (unlikely(sphead->eq_routine_name(&target)))
+  {
+    my_error(ER_SYNONYM_IS_CYCLICAL, MYF(0),
+              sphead->to_identifier_chain2().make_qname(thd->mem_root).str);
+    return true;
+  }
+
+  if (unlikely(sphead->m_explicit_name && is_public))
+  {
+    my_error(ER_PUBLIC_SYNONYM_QUALIFIED, MYF(0));
+    return true;
+  }
+
+  if (is_public)
+    sphead->m_db= any_db;
+
+  sphead->m_synonym_target= target;
+
+  sphead->set_stmt_end(thd, cpp_body_end);
+  sphead->restore_thd_mem_root(thd);
+
+  /*
+    Set the body of the sphead with qualified target name.
+  */
+  auto qname= target.to_identifier_chain2().make_qname(thd->mem_root);
+
+  String buf;
+  buf.alloc(qname.length + 4 + 1);
+  buf.append(STRING_WITH_LEN("FOR "));
+  buf.append(qname.str, qname.length);
+  sphead->m_body= thd->strmake_lex_cstring_trim_whitespace(buf.to_lex_cstring());
+
+  definer= nullptr;
+
+  return false;
+}
 
 /**
   @brief

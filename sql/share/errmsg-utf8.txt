@@ -2676,11 +2676,8 @@ ER_TABLE_NOT_LOCKED
         sw "Jedwali '%-.192s' halikufungwa kwa LOCK TABLES"
         swe "Tabell '%-.192s' är inte låst med LOCK TABLES"
         ukr "Таблицю '%-.192s' не було блоковано з LOCK TABLES"
-ER_UNUSED_17
-        eng "You should never see it"
-        geo "ის ვერასდროს უნდა დაგენახათ"
-        spa "Nunca debería vd de ver esto"
-        sw "Hupaswi kuiona kamwe"
+ER_SYNONYM_IS_CYCLICAL
+        eng "SYNONYM '%-.192s' is cyclical"
 ER_WRONG_DB_NAME 42000 
         chi "数据库名称不正确'%-.100T'"
         cze "Nepřípustné jméno databáze '%-.100T'"
@@ -7189,9 +7186,8 @@ ER_VIEW_FRM_NO_USER
         geo "ხედს '%-.192s'.'%-.192s' აღმწერის ინფორმაცია არ გააჩნია (ცხრილის ფორმატი ძველია). აღმწერად მიმდინარე მომხმარებელი გამოიყენება. გთხოვთ, შექმენით ეს ხედი თავიდან!"
         spa "La vista '%-.192s'.'%-.192s' no tiene información de definidor (formato viejo de tabla). Se usa el usuario actual como definidor. Por favor, ¡recrea la vista!"
         sw "Tazama '%-.192s'.'%-.192s' haina maelezo ya kifafanua (muundo wa jedwali la zamani). Mtumiaji wa sasa anatumika kama kibainishaji. Tafadhali tengeneza tazama mpya!"
-ER_UNUSED_30
-        eng "You should never see it"
-        sw "Hupaswi kuiona kamwe"
+ER_PUBLIC_SYNONYM_QUALIFIED
+        eng "PUBLIC SYNONYM must not be qualified"
 ER_NO_SUCH_USER
         chi "指定为定义的用户（'%-.64s'@'%-.64s'）不存在"
         eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"

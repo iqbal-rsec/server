@@ -4891,6 +4891,10 @@ public:
   {
     return nullptr;
   }
+
+  bool create_synonym_finalize(THD *thd, DDL_options_st options,
+                               const sp_name &target,
+                               bool is_public, const char *cpp_body_end);
 };
 
 

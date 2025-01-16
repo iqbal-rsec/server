@@ -5797,6 +5797,8 @@ static inline enum_object_type sp_type_to_object_type(uint sp_type)
       return OBJECT_TYPE_TRIGGER;
     case SP_TYPE_EVENT:
       return OBJECT_TYPE_EVENT;
+    case SP_TYPE_SYNONYM:
+      return OBJECT_TYPE_SYNONYM;
     default:
       assert(false);
       /* Dead code */

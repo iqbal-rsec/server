@@ -68,7 +68,11 @@ enum privilege_t: unsigned long long
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
   SLAVE_MONITOR_ACL     = (1ULL << 38), // Added in 10.5.8
-  SHOW_CREATE_ROUTINE_ACL = (1ULL << 39)  // added in 11.3.0
+  SHOW_CREATE_ROUTINE_ACL = (1ULL << 39),  // added in 11.3.0
+  CREATE_SYNONYM_ACL    = (1ULL << 40),  // added in 11.8.0
+  ALTER_SYNONYM_ACL     = (1ULL << 41),  // added in 11.8.0
+  CREATE_PUBLIC_SYNONYM_ACL = (1ULL << 42)  // added in 11.8.0
+
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
@@ -105,9 +109,10 @@ constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
 constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
 constexpr privilege_t LAST_110300_ACL= SHOW_CREATE_ROUTINE_ACL;
+constexpr privilege_t LAST_110800_ACL= CREATE_PUBLIC_SYNONYM_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_110300_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_110800_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -129,6 +134,9 @@ constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
 
 // A combination of all bits defined in 11.3.0
 constexpr privilege_t ALL_KNOWN_ACL_110300= ALL_KNOWN_BITS(LAST_110300_ACL);
+
+// A combination of all bits defined in 11.8.0
+constexpr privilege_t ALL_KNOWN_ACL_110800= ALL_KNOWN_BITS(LAST_110800_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);
@@ -269,6 +277,9 @@ constexpr privilege_t PROC_DDL_ACLS=
 constexpr privilege_t SHOW_PROC_WITHOUT_DEFINITION_ACLS=
   PROC_DDL_ACLS | EXECUTE_ACL;
 
+constexpr privilege_t PRIV_SYNONYM_ACLS=
+  CREATE_SYNONYM_ACL | ALTER_SYNONYM_ACL;
+
 /*
   When changing this, don't forget to update tables_priv
   at scripts/mariadb_system_tables.sql, scripts/mariadb_system_tables_fix.sql
@@ -281,7 +292,8 @@ constexpr privilege_t TABLE_ACLS=
 
 constexpr privilege_t DB_ACLS=
    TABLE_ACLS | PROC_DDL_ACLS | EXECUTE_ACL |
-   CREATE_TMP_ACL | LOCK_TABLES_ACL | EVENT_ACL | SHOW_CREATE_ROUTINE_ACL;
+   CREATE_TMP_ACL | LOCK_TABLES_ACL | EVENT_ACL | SHOW_CREATE_ROUTINE_ACL |
+   PRIV_SYNONYM_ACLS;
 
 constexpr privilege_t PROC_ACLS=
   ALTER_PROC_ACL | EXECUTE_ACL | GRANT_ACL | SHOW_CREATE_ROUTINE_ACL;
@@ -290,6 +302,7 @@ constexpr privilege_t GLOBAL_ACLS=
   DB_ACLS | SHOW_DB_ACL | CREATE_USER_ACL | CREATE_TABLESPACE_ACL |
   SUPER_ACL | RELOAD_ACL | SHUTDOWN_ACL | PROCESS_ACL | FILE_ACL |
   REPL_SLAVE_ACL |
+  CREATE_PUBLIC_SYNONYM_ACL |
   ALLOWED_BY_SUPER_BEFORE_101100 | ALLOWED_BY_SUPER_BEFORE_110000;
 
 constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
@@ -684,7 +697,7 @@ constexpr privilege_t DB_CHUNK3 (VIEW_ACLS | PROC_DDL_ACLS);
 constexpr privilege_t DB_CHUNK4 (EXECUTE_ACL);
 constexpr privilege_t DB_CHUNK5 (EVENT_ACL | TRIGGER_ACL);
 constexpr privilege_t DB_CHUNK6 (DELETE_HISTORY_ACL);
-constexpr privilege_t DB_CHUNK7 (SHOW_CREATE_ROUTINE_ACL);
+constexpr privilege_t DB_CHUNK7 (SHOW_CREATE_ROUTINE_ACL | CREATE_SYNONYM_ACL | ALTER_SYNONYM_ACL);
 
 
 static inline privilege_t fix_rights_for_db(privilege_t access)

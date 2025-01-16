@@ -629,6 +629,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> PRECISION                     /* SQL-2003-R */
 %token  <kwd> PRIMARY_SYM                   /* SQL-2003-R */
 %token  <kwd> PROCEDURE_SYM                 /* SQL-2003-R */
+%token  <kwd> PUBLIC_SYM
 %token  <kwd> PURGE
 %token  <kwd> RAISE_ORACLE_SYM              /* PLSQL-R    */
 %token  <kwd> RANGE_SYM                     /* SQL-2003-R */
@@ -682,6 +683,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> STRAIGHT_JOIN
 %token  <kwd> SUM_SYM                       /* SQL-2003-N */
 %token  <kwd> SYSDATE
+%token  <kwd> SYNONYM_SYM
 %token  <kwd> TABLE_REF_PRIORITY
 %token  <kwd> TABLE_SYM                     /* SQL-2003-R */
 %token  <kwd> TERMINATED
@@ -1476,6 +1478,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
+
+%type <num> opt_public
 
 %type <object_ddl_options>
         create_or_replace
@@ -2756,6 +2760,29 @@ create:
           server_def
           { }
         | create_routine
+%ifdef ORACLE
+        | create_or_replace opt_public SYNONYM_SYM sp_name
+          {
+            if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_SYNONYM,
+                                                     $1)))
+              MYSQL_YYABORT;
+            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $4,
+                                            &sp_handler_synonym,
+                                            DEFAULT_AGGREGATE)))
+              MYSQL_YYABORT;
+            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+          }
+          FOR_SYM sp_name remember_end_opt
+          {
+            if (unlikely(Lex->create_synonym_finalize(thd, $1, *$7, $2, $8)))
+              MYSQL_YYABORT;
+          }
+%endif
+        ;
+
+opt_public:
+          /* empty */ { $$= 0; }
+        | PUBLIC_SYM  { $$= 1; }
         ;
 
 opt_sequence:
@@ -13475,6 +13502,23 @@ drop:
           }
           table_list
           {}
+%ifdef ORACLE
+        | DROP opt_public SYNONYM_SYM opt_if_exists sp_name
+          {
+            LEX *lex= Lex;
+            lex->set_command(SQLCOM_DROP_SYNONYM, $4);
+            lex->spname= $5;
+            if ($2)
+            {
+              if (unlikely(lex->spname->m_explicit_name))
+              {
+                my_error(ER_PUBLIC_SYNONYM_QUALIFIED, MYF(0));
+                MYSQL_YYABORT;
+              }
+              lex->spname->m_db= any_db;
+            }
+          }
+%endif
         | drop_routine
         ;
 
@@ -14628,6 +14672,21 @@ show_param:
           {
             Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
             Lex->spname= $4;
+          }
+        | CREATE opt_public SYNONYM_SYM sp_name
+          {
+            Lex->sql_command= SQLCOM_SHOW_CREATE_SYNONYM;
+            Lex->spname= $4;
+            
+            if ($2)
+            {
+              if (unlikely(Lex->spname->m_explicit_name))
+              {
+                my_error(ER_PUBLIC_SYNONYM_QUALIFIED, MYF(0));
+                MYSQL_YYABORT;
+              }
+              Lex->spname->m_db= any_db;
+            }
           }
         | CREATE EVENT_SYM sp_name
           {
@@ -16124,6 +16183,7 @@ keyword_table_alias:
         | FUNCTION_SYM
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
+        | PUBLIC_SYM
         ;
 
 /* Keyword that we allow for identifiers (except SP labels) */
@@ -16144,6 +16204,7 @@ keyword_ident:
 %ifdef ORACLE
         | TYPE_SYM
 %endif
+        | PUBLIC_SYM
         ;
 
 keyword_sysvar_name:
@@ -16160,6 +16221,7 @@ keyword_sysvar_name:
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
         | OFFSET_SYM
+        | PUBLIC_SYM
         ;
 
 keyword_set_usual_case:
@@ -16176,6 +16238,7 @@ keyword_set_usual_case:
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
         | OFFSET_SYM
+        | PUBLIC_SYM
         ;
 
 non_reserved_keyword_udt:
@@ -16187,6 +16250,7 @@ non_reserved_keyword_udt:
         | keyword_sysvar_type
         | keyword_sp_var_and_label
         | OFFSET_SYM
+        | PUBLIC_SYM
         ;
 
 /*
@@ -17953,6 +18017,9 @@ object_privilege:
         | REPLICATION SLAVE ADMIN_SYM      { $$= REPL_SLAVE_ADMIN_ACL; }
         | SLAVE MONITOR_SYM                { $$= SLAVE_MONITOR_ACL; }
         | SHOW CREATE ROUTINE_SYM          { $$= SHOW_CREATE_ROUTINE_ACL; }
+        | CREATE SYNONYM_SYM               { $$= CREATE_SYNONYM_ACL; }
+        | ALTER SYNONYM_SYM                { $$= ALTER_SYNONYM_ACL; }
+        | CREATE PUBLIC_SYM SYNONYM_SYM    { $$= CREATE_PUBLIC_SYNONYM_ACL; }
         ;
 
 opt_and:

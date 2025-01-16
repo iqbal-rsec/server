@@ -21,8 +21,8 @@ CREATE DATABASE IF NOT EXISTS test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400
 --- access database 'test' and 'test_%' if "db" table didn't exist
 INSERT INTO mysql.global_priv VALUES ('', 'PUBLIC', '{"access":0,"is_role":true}');
 CREATE TEMPORARY TABLE tmp_db LIKE db;
-INSERT INTO tmp_db VALUES ('','test',   'PUBLIC','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y','Y');
-INSERT INTO tmp_db VALUES ('','test\_%','PUBLIC','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y','Y');
+INSERT INTO tmp_db VALUES ('','test',   'PUBLIC','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y','Y','Y','Y');
+INSERT INTO tmp_db VALUES ('','test\_%','PUBLIC','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y','Y','Y','Y');
 INSERT INTO db SELECT * FROM tmp_db WHERE @had_db_table=0;
 DROP TABLE tmp_db;
 

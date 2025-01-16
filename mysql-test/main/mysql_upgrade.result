@@ -2430,6 +2430,8 @@ mysql.user has data
 # MDEV-33554 Upgrade from 11.2 to 11.3 changes root's privileges
 #
 alter table mysql.db drop column show_create_routine_priv;
+alter table mysql.db drop column create_synonym_priv;
+alter table mysql.db drop column alter_synonym_priv;
 flush privileges;
 create user foo@bar;
 grant all privileges on mysql.* to foo@bar;

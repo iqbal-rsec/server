@@ -1,0 +1,489 @@
+--echo #
+--echo # MDEV-16482: Add support for SYNONYM for tables, views, sequences,
+--echo # functions, procedures and packages in Oracle mode
+--echo #
+
+SET sql_mode=oracle;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+
+CREATE TABLE t3 (b INT);
+INSERT INTO t3 VALUES (7), (8), (9);
+
+--echo #
+--echo # Create a SYNONYM for a table
+--echo #
+CREATE SYNONYM syn_t1 FOR t1;
+
+--echo #
+--echo # Select using the SYNONYM
+--echo #
+SELECT syn_t1.a FROM syn_t1 WHERE syn_t1.a = 2;
+SELECT test.syn_t1.a FROM test.syn_t1 WHERE test.syn_t1.a = 2;
+
+--echo #
+--echo # CREATE OR REPLACE SYNONYM
+--echo #
+CREATE OR REPLACE SYNONYM syn_t1 FOR t2;
+--error ER_NO_SUCH_TABLE
+SELECT syn_t1.a FROM syn_t1 WHERE syn_t1.a = 2;
+
+--echo #
+--echo # DROP SYNONYM
+--echo #
+DROP SYNONYM IF EXISTS syn_t1;
+--error ER_SP_DOES_NOT_EXIST
+DROP SYNONYM syn_t1;
+DROP SYNONYM IF EXISTS syn_t1;
+
+CREATE SYNONYM syn_t1 FOR t1;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM syn_t1;
+
+--echo #
+--echo # Create a SYNONYM for a VIEW
+--echo #
+CREATE SYNONYM syn_v1 FOR v1;
+
+--echo #
+--echo # Select using the SYNONYM
+--echo #
+SELECT syn_v1.a FROM syn_v1 WHERE syn_v1.a = 2;
+SELECT test.syn_v1.a FROM test.syn_v1 WHERE test.syn_v1.a = 2;
+
+SELECT * FROM v2 WHERE v2.a = 2;
+
+CREATE SEQUENCE seq START WITH 100 INCREMENT BY 10;
+
+--echo #
+--echo # Create a SYNONYM for a SEQUENCE
+--echo #
+CREATE SYNONYM syn_seq FOR seq;
+
+--echo #
+--echo # Operate on the sequence using the SYNONYM
+--echo #
+SELECT syn_seq.NEXTVAL FROM DUAL;
+
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Create a SYNONYM for a stored FUNCTION
+--echo #
+CREATE SYNONYM syn_f1 FOR f1;
+
+--echo #
+--echo # Execute the FUNCTION using the SYNONYM
+--echo #
+SELECT syn_f1() FROM DUAL;
+SELECT test.syn_f1() FROM DUAL;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Create a SYNONYM for a stored PROCEDURE
+--echo #
+CREATE SYNONYM syn_p1 FOR p1;
+
+--echo #
+--echo # Execute the PROCEDURE using the SYNONYM
+--echo #
+CALL syn_p1();
+CALL test.syn_p1();
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 1;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Create a SYNONYM for a PACKAGE
+--echo #
+CREATE SYNONYM syn_pkg1 FOR pkg1;
+
+--echo #
+--echo # Execute the PACKAGE's routines using the SYNONYM
+--echo #
+SELECT syn_pkg1.f1() FROM DUAL;
+SELECT test.syn_pkg1.f1() FROM DUAL;
+CALL syn_pkg1.p1();
+CALL test.syn_pkg1.p1();
+
+--echo #
+--echo # Create a SYNONYM for a PACKAGE's object
+--echo # Not supported in Oracle too
+--echo #
+--error ER_PARSE_ERROR
+CREATE SYNONYM syn_pkg1_f1 FOR test.pkg1.f1;
+CREATE SYNONYM syn_pkg1_f1 FOR pkg1.f1;
+--echo # TODO, should fail with ER_SP_DOES_NOT_EXIST
+SELECT syn_pkg1_f1() FROM DUAL;
+
+--echo #
+--echo # Create a SYNONYM for a SYNONYM
+--echo #
+CREATE SYNONYM syn_syn_t1 FOR syn_t1;
+SELECT * FROM syn_syn_t1;
+
+--echo #
+--echo # Create a cyclic SYNONYM
+--echo #
+CREATE SYNONYM syn_a FOR syn_b;
+CREATE SYNONYM syn_b FOR syn_a;
+--error ER_SYNONYM_IS_CYCLICAL
+SELECT * FROM syn_a;
+--error ER_SYNONYM_IS_CYCLICAL
+SELECT * FROM syn_b;
+--error ER_SYNONYM_IS_CYCLICAL
+CREATE SYNONYM syn_d FOR test.syn_d;
+--error ER_SYNONYM_IS_CYCLICAL
+CREATE SYNONYM test.syn_d FOR test.syn_d;
+--error ER_SYNONYM_IS_CYCLICAL
+CREATE SYNONYM syn_d FOR syn_d;
+
+--echo #
+--echo # PUBLIC SYNONYM
+--echo #
+CREATE PUBLIC SYNONYM syn_pub_t1 FOR t1;
+SELECT * FROM syn_pub_t1;
+
+CREATE PUBLIC SYNONYM syn_pub_f1 FOR f1;
+SELECT syn_pub_f1() FROM DUAL;
+
+CREATE PUBLIC SYNONYM syn_pub_p1 FOR p1;
+CALL syn_pub_p1();
+
+CREATE PUBLIC SYNONYM syn_pub_pkg1 FOR pkg1;
+SELECT syn_pub_pkg1.f1() FROM DUAL;
+CALL syn_pub_pkg1.p1();
+
+--echo #
+--echo # Create a PUBLIC SYNONYM using an existing name
+--echo #
+--error ER_SP_ALREADY_EXISTS
+CREATE PUBLIC SYNONYM syn_pub_t1 FOR t3;
+
+--echo #
+--echo # REPLACE PUBLIC SYNONYM
+--echo #
+CREATE OR REPLACE PUBLIC SYNONYM syn_pub_t1 FOR t3;
+
+--echo #
+--echo # Drop PUBLIC SYNONYM, qualified with schema
+--echo #
+--error ER_PUBLIC_SYNONYM_QUALIFIED
+DROP PUBLIC SYNONYM test.syn_pub_t1;
+
+--echo #
+--echo # CREATE PUBLIC SYNONYM, qualified with schema
+--echo #
+--error ER_PUBLIC_SYNONYM_QUALIFIED
+CREATE PUBLIC SYNONYM test.syn_pub_t1 FOR t1;
+
+CREATE USER testuser;
+CREATE DATABASE db1;
+GRANT ALL ON db1.* TO testuser;
+GRANT CREATE PUBLIC SYNONYM ON *.* TO testuser;
+
+connect(con2, localhost, testuser);
+connection con2;
+USE db1;
+SET sql_mode=oracle;
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (4), (5), (6);
+
+CREATE SYNONYM syn_t2 FOR db1.t2;
+SELECT * FROM syn_t2;
+
+CREATE PUBLIC SYNONYM syn_pub_t2 FOR db1.t2;
+
+--echo #
+--echo # Create a SYNONYM for a table in another database
+--echo # which the user does not has access
+--echo #
+CREATE SYNONYM syn_t1 FOR test.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM syn_t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test.syn_t1;
+
+connection default;
+
+USE test;
+SELECT * FROM db1.syn_t1;
+SELECT * FROM db1.t2;
+SELECT * FROM db1.syn_t2;
+
+--echo #
+--echo # Create a SYNONYM for a table in another database
+--echo # which the user has access
+--echo #
+CREATE SYNONYM syn_t2 FOR db1.t2;
+SELECT * FROM syn_t2;
+
+--echo #
+--echo # Use a PUBLIC synonym created by another USER
+--echo #
+SELECT * FROM syn_pub_t2;
+
+--echo #
+--echo # REVOKE PUBLIC SYNONYM privilege
+--echo #
+REVOKE CREATE PUBLIC SYNONYM ON *.* FROM testuser;
+
+disconnect con2;
+connect(con2, localhost, testuser);
+connection con2;
+USE db1;
+SET sql_mode=oracle;
+
+--echo #
+--echo # CREATE public SYNONYM without privilege
+--echo #
+--error ER_ACCESS_DENIED_ERROR
+CREATE PUBLIC SYNONYM syn_pub_t2 FOR db1.t2;
+
+--echo #
+--echo # DROP public SYNONYM without privilege
+--echo #
+--error ER_ACCESS_DENIED_ERROR
+DROP PUBLIC SYNONYM syn_pub_t1;
+
+--echo #
+--echo # REPLACE public SYNONYM without privilege
+--echo #
+--error ER_ACCESS_DENIED_ERROR
+CREATE OR REPLACE PUBLIC SYNONYM syn_pub_t1 FOR db1.t1;
+
+connection default;
+disconnect con2;
+
+--echo #
+--echo # REVOKE ALTER SYNONYM privilege
+--echo #
+REVOKE ALTER SYNONYM ON db1.* FROM testuser;
+
+connect(con2, localhost, testuser);
+connection con2;
+USE db1;
+SET sql_mode=oracle;
+
+--echo #
+--echo # DROP SYNONYM without privilege
+--echo #
+--error ER_DBACCESS_DENIED_ERROR
+DROP SYNONYM syn_t2;
+
+--echo #
+--echo # REPLACE SYNONYM without privilege
+--echo #
+--error ER_DBACCESS_DENIED_ERROR
+CREATE OR REPLACE SYNONYM syn_t2 FOR t2;
+
+connection default;
+
+--echo #
+--echo # SHOW CREATE SYNONYM
+--echo #
+SHOW CREATE SYNONYM syn_t1;
+SHOW CREATE PUBLIC SYNONYM syn_pub_f1;
+SHOW CREATE SYNONYM db1.syn_t2;
+
+--echo #
+--echo # SHOW CREATE SYNONYM with non-existing synonym
+--echo #
+--error ER_SP_DOES_NOT_EXIST
+SHOW CREATE SYNONYM syn_non_existing;
+--error ER_SP_DOES_NOT_EXIST
+SHOW CREATE SYNONYM db1.syn_non_existing;
+--error ER_SP_DOES_NOT_EXIST
+SHOW CREATE PUBLIC SYNONYM syn_non_existing;
+
+--echo #
+--echo # SHOW CREATE PUBLIC SYNONYM with qualified name
+--echo #
+--error ER_PUBLIC_SYNONYM_QUALIFIED
+SHOW CREATE PUBLIC SYNONYM test.syn_pub_t1;
+
+
+--echo #
+--echo # proc corruption test
+--echo #
+CREATE SYNONYM syn_c FOR t1;
+UPDATE mysql.proc p SET p.body='garbage' WHERE p.db='test' AND p.name='syn_c';
+
+--error ER_SP_PROC_TABLE_CORRUPT
+SELECT * FROM syn_c;
+--error ER_PARSE_ERROR
+SHOW CREATE SYNONYM syn_c;
+
+DROP SYNONYM syn_c;
+
+--echo #
+--echo # Create synonym for a non-existing object, and then create the object
+--echo #
+CREATE SYNONYM syn_t4 FOR t4;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM syn_t4;
+CREATE TABLE t4 (a INT);
+INSERT INTO syn_t4 VALUES (10), (11), (12);
+SELECT * FROM syn_t4;
+
+--echo #
+--echo # Create synonym with invalid DB name
+--echo #
+--error ER_WRONG_DB_NAME
+CREATE SYNONYM `test `.syn_t4 FOR t4;
+
+--echo #
+--echo # Create synonym with invalid name
+--echo #
+--error ER_SP_WRONG_NAME
+CREATE SYNONYM `syn_t4 ` FOR t4;
+
+--echo #
+--echo # Create synonym with invalid target's DB name
+--echo #
+--error ER_WRONG_DB_NAME
+CREATE SYNONYM syn_t4 FOR `test `.t4;
+
+--echo #
+--echo # Create synonym with invalid target's name
+--echo #
+--error ER_SP_WRONG_NAME
+CREATE SYNONYM syn_t4 FOR `t4 `;
+
+SET NAMES utf8;
+--echo #
+--echo # Create synonym with utf8 name
+--echo #
+CREATE SYNONYM アキラ FOR t4;
+SELECT * FROM アキラ;
+SHOW CREATE SYNONYM アキラ;
+DROP SYNONYM アキラ;
+
+--echo #
+--echo # Create synonym from within routines
+--echo # In Oracle, this is not allowed
+--echo #
+DELIMITER $$;
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE PROCEDURE p2 AS
+BEGIN
+  CREATE SYNONYM syn_p2 FOR p2;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE FUNCTION f2 RETURN INT AS
+BEGIN
+  CREATE SYNONYM syn_p2 FOR p2;
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE PACKAGE BODY pkg2 AS
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    CREATE SYNONYM syn_p2 FOR p2;
+    RETURN 1;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Drop PUBLIC SYNONYM without specifying PUBLIC
+--echo #
+--error ER_SP_DOES_NOT_EXIST
+DROP SYNONYM syn_pub_t1;
+
+--echo #
+--echo # Drop PUBLIC SYNONYM
+--echo #
+DROP PUBLIC SYNONYM syn_pub_t1;
+DROP PUBLIC SYNONYM syn_pub_f1;
+
+--echo #
+--echo # Drop PUBLIC SYNONYM created by another USER
+--echo #
+DROP PUBLIC SYNONYM syn_pub_t2;
+
+--echo #
+--echo # Drop non-existing PUBLIC SYNONYM
+--echo #
+--error ER_SP_DOES_NOT_EXIST
+DROP PUBLIC SYNONYM syn_pub_t1;
+
+DROP SYNONYM syn_a;
+DROP SYNONYM test.syn_b;
+DROP SYNONYM syn_syn_t1;
+DROP SYNONYM syn_t1;
+DROP SYNONYM syn_t2;
+DROP SYNONYM syn_t4;
+DROP SYNONYM syn_v1;
+DROP SYNONYM syn_seq;
+DROP SYNONYM syn_f1;
+DROP SYNONYM syn_p1;
+DROP SYNONYM syn_pkg1;
+
+DROP TABLE t1;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP VIEW v1;
+DROP VIEW v2;
+DROP SEQUENCE seq;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+
+USE db1;
+DROP TABLE t2;
+DROP SYNONYM syn_t2;
+DROP SYNONYM syn_t1;
+DROP DATABASE db1;
+USE test;
+DROP USER testuser;
+
+--echo # select next value for s;
+--echo #
+--echo # select next value for syn_seq;

@@ -1,0 +1,473 @@
+#
+# MDEV-16482: Add support for SYNONYM for tables, views, sequences,
+# functions, procedures and packages in Oracle mode
+#
+SET sql_mode=oracle;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+CREATE TABLE t3 (b INT);
+INSERT INTO t3 VALUES (7), (8), (9);
+#
+# Create a SYNONYM for a table
+#
+CREATE SYNONYM syn_t1 FOR t1;
+#
+# Select using the SYNONYM
+#
+SELECT syn_t1.a FROM syn_t1 WHERE syn_t1.a = 2;
+a
+2
+SELECT test.syn_t1.a FROM test.syn_t1 WHERE test.syn_t1.a = 2;
+a
+2
+#
+# CREATE OR REPLACE SYNONYM
+#
+CREATE OR REPLACE SYNONYM syn_t1 FOR t2;
+SELECT syn_t1.a FROM syn_t1 WHERE syn_t1.a = 2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+#
+# DROP SYNONYM
+#
+DROP SYNONYM IF EXISTS syn_t1;
+DROP SYNONYM syn_t1;
+ERROR 42000: SYNONYM test.syn_t1 does not exist
+DROP SYNONYM IF EXISTS syn_t1;
+Warnings:
+Note	1305	SYNONYM test.syn_t1 does not exist
+CREATE SYNONYM syn_t1 FOR t1;
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM syn_t1;
+#
+# Create a SYNONYM for a VIEW
+#
+CREATE SYNONYM syn_v1 FOR v1;
+#
+# Select using the SYNONYM
+#
+SELECT syn_v1.a FROM syn_v1 WHERE syn_v1.a = 2;
+a
+2
+SELECT test.syn_v1.a FROM test.syn_v1 WHERE test.syn_v1.a = 2;
+a
+2
+SELECT * FROM v2 WHERE v2.a = 2;
+a
+2
+CREATE SEQUENCE seq START WITH 100 INCREMENT BY 10;
+#
+# Create a SYNONYM for a SEQUENCE
+#
+CREATE SYNONYM syn_seq FOR seq;
+#
+# Operate on the sequence using the SYNONYM
+#
+SELECT syn_seq.NEXTVAL FROM DUAL;
+syn_seq.NEXTVAL
+100
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+$$
+#
+# Create a SYNONYM for a stored FUNCTION
+#
+CREATE SYNONYM syn_f1 FOR f1;
+#
+# Execute the FUNCTION using the SYNONYM
+#
+SELECT syn_f1() FROM DUAL;
+syn_f1()
+1
+SELECT test.syn_f1() FROM DUAL;
+test.syn_f1()
+1
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+$$
+#
+# Create a SYNONYM for a stored PROCEDURE
+#
+CREATE SYNONYM syn_p1 FOR p1;
+#
+# Execute the PROCEDURE using the SYNONYM
+#
+CALL syn_p1();
+CALL test.syn_p1();
+CREATE PACKAGE pkg1 AS
+FUNCTION f1 RETURN INT;
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+#
+# Create a SYNONYM for a PACKAGE
+#
+CREATE SYNONYM syn_pkg1 FOR pkg1;
+#
+# Execute the PACKAGE's routines using the SYNONYM
+#
+SELECT syn_pkg1.f1() FROM DUAL;
+syn_pkg1.f1()
+1
+SELECT test.syn_pkg1.f1() FROM DUAL;
+test.syn_pkg1.f1()
+1
+CALL syn_pkg1.p1();
+CALL test.syn_pkg1.p1();
+#
+# Create a SYNONYM for a PACKAGE's object
+# Not supported in Oracle too
+#
+CREATE SYNONYM syn_pkg1_f1 FOR test.pkg1.f1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.f1' at line 1
+CREATE SYNONYM syn_pkg1_f1 FOR pkg1.f1;
+# TODO, should fail with ER_SP_DOES_NOT_EXIST
+SELECT syn_pkg1_f1() FROM DUAL;
+syn_pkg1_f1()
+1
+#
+# Create a SYNONYM for a SYNONYM
+#
+CREATE SYNONYM syn_syn_t1 FOR syn_t1;
+SELECT * FROM syn_syn_t1;
+a
+1
+2
+3
+#
+# Create a cyclic SYNONYM
+#
+CREATE SYNONYM syn_a FOR syn_b;
+CREATE SYNONYM syn_b FOR syn_a;
+SELECT * FROM syn_a;
+ERROR HY000: SYNONYM 'test.syn_a' is cyclical
+SELECT * FROM syn_b;
+ERROR HY000: SYNONYM 'test.syn_b' is cyclical
+CREATE SYNONYM syn_d FOR test.syn_d;
+ERROR HY000: SYNONYM 'test.syn_d' is cyclical
+CREATE SYNONYM test.syn_d FOR test.syn_d;
+ERROR HY000: SYNONYM 'test.syn_d' is cyclical
+CREATE SYNONYM syn_d FOR syn_d;
+ERROR HY000: SYNONYM 'test.syn_d' is cyclical
+#
+# PUBLIC SYNONYM
+#
+CREATE PUBLIC SYNONYM syn_pub_t1 FOR t1;
+SELECT * FROM syn_pub_t1;
+a
+1
+2
+3
+CREATE PUBLIC SYNONYM syn_pub_f1 FOR f1;
+SELECT syn_pub_f1() FROM DUAL;
+syn_pub_f1()
+1
+CREATE PUBLIC SYNONYM syn_pub_p1 FOR p1;
+CALL syn_pub_p1();
+CREATE PUBLIC SYNONYM syn_pub_pkg1 FOR pkg1;
+SELECT syn_pub_pkg1.f1() FROM DUAL;
+syn_pub_pkg1.f1()
+1
+CALL syn_pub_pkg1.p1();
+#
+# Create a PUBLIC SYNONYM using an existing name
+#
+CREATE PUBLIC SYNONYM syn_pub_t1 FOR t3;
+ERROR 42000: SYNONYM syn_pub_t1 already exists
+#
+# REPLACE PUBLIC SYNONYM
+#
+CREATE OR REPLACE PUBLIC SYNONYM syn_pub_t1 FOR t3;
+#
+# Drop PUBLIC SYNONYM, qualified with schema
+#
+DROP PUBLIC SYNONYM test.syn_pub_t1;
+ERROR HY000: PUBLIC SYNONYM must not be qualified
+#
+# CREATE PUBLIC SYNONYM, qualified with schema
+#
+CREATE PUBLIC SYNONYM test.syn_pub_t1 FOR t1;
+ERROR HY000: PUBLIC SYNONYM must not be qualified
+CREATE USER testuser;
+CREATE DATABASE db1;
+GRANT ALL ON db1.* TO testuser;
+GRANT CREATE PUBLIC SYNONYM ON *.* TO testuser;
+connect con2, localhost, testuser;
+connection con2;
+USE db1;
+SET sql_mode=oracle;
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (4), (5), (6);
+CREATE SYNONYM syn_t2 FOR db1.t2;
+SELECT * FROM syn_t2;
+a
+4
+5
+6
+CREATE PUBLIC SYNONYM syn_pub_t2 FOR db1.t2;
+#
+# Create a SYNONYM for a table in another database
+# which the user does not has access
+#
+CREATE SYNONYM syn_t1 FOR test.t1;
+SELECT * FROM syn_t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `test`.`t1`
+SELECT * FROM test.syn_t1;
+ERROR 42000: SELECT command denied to user 'testuser'@'localhost' for table `test`.`t1`
+connection default;
+USE test;
+SELECT * FROM db1.syn_t1;
+a
+1
+2
+3
+SELECT * FROM db1.t2;
+a
+4
+5
+6
+SELECT * FROM db1.syn_t2;
+a
+4
+5
+6
+#
+# Create a SYNONYM for a table in another database
+# which the user has access
+#
+CREATE SYNONYM syn_t2 FOR db1.t2;
+SELECT * FROM syn_t2;
+a
+4
+5
+6
+#
+# Use a PUBLIC synonym created by another USER
+#
+SELECT * FROM syn_pub_t2;
+a
+4
+5
+6
+#
+# REVOKE PUBLIC SYNONYM privilege
+#
+REVOKE CREATE PUBLIC SYNONYM ON *.* FROM testuser;
+disconnect con2;
+connect con2, localhost, testuser;
+connection con2;
+USE db1;
+SET sql_mode=oracle;
+#
+# CREATE public SYNONYM without privilege
+#
+CREATE PUBLIC SYNONYM syn_pub_t2 FOR db1.t2;
+ERROR 28000: Access denied for user 'testuser'@'%' (using password: NO)
+#
+# DROP public SYNONYM without privilege
+#
+DROP PUBLIC SYNONYM syn_pub_t1;
+ERROR 28000: Access denied for user 'testuser'@'%' (using password: NO)
+#
+# REPLACE public SYNONYM without privilege
+#
+CREATE OR REPLACE PUBLIC SYNONYM syn_pub_t1 FOR db1.t1;
+ERROR 28000: Access denied for user 'testuser'@'%' (using password: NO)
+connection default;
+disconnect con2;
+#
+# REVOKE ALTER SYNONYM privilege
+#
+REVOKE ALTER SYNONYM ON db1.* FROM testuser;
+connect con2, localhost, testuser;
+connection con2;
+USE db1;
+SET sql_mode=oracle;
+#
+# DROP SYNONYM without privilege
+#
+DROP SYNONYM syn_t2;
+ERROR 42000: Access denied for user 'testuser'@'%' to database 'db1'
+#
+# REPLACE SYNONYM without privilege
+#
+CREATE OR REPLACE SYNONYM syn_t2 FOR t2;
+ERROR 42000: Access denied for user 'testuser'@'%' to database 'db1'
+connection default;
+#
+# SHOW CREATE SYNONYM
+#
+SHOW CREATE SYNONYM syn_t1;
+Synonym	sql_mode	Create Synonym	character_set_client	collation_connection	Database Collation
+syn_t1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE SYNONYM "test"."syn_t1" FOR test.t1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW CREATE PUBLIC SYNONYM syn_pub_f1;
+Synonym	sql_mode	Create Synonym	character_set_client	collation_connection	Database Collation
+syn_pub_f1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE PUBLIC SYNONYM "syn_pub_f1" FOR test.f1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW CREATE SYNONYM db1.syn_t2;
+Synonym	sql_mode	Create Synonym	character_set_client	collation_connection	Database Collation
+syn_t2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE SYNONYM "db1"."syn_t2" FOR db1.t2	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+#
+# SHOW CREATE SYNONYM with non-existing synonym
+#
+SHOW CREATE SYNONYM syn_non_existing;
+ERROR 42000: SYNONYM syn_non_existing does not exist
+SHOW CREATE SYNONYM db1.syn_non_existing;
+ERROR 42000: SYNONYM syn_non_existing does not exist
+SHOW CREATE PUBLIC SYNONYM syn_non_existing;
+ERROR 42000: SYNONYM syn_non_existing does not exist
+#
+# SHOW CREATE PUBLIC SYNONYM with qualified name
+#
+SHOW CREATE PUBLIC SYNONYM test.syn_pub_t1;
+ERROR HY000: PUBLIC SYNONYM must not be qualified
+#
+# proc corruption test
+#
+CREATE SYNONYM syn_c FOR t1;
+UPDATE mysql.proc p SET p.body='garbage' WHERE p.db='test' AND p.name='syn_c';
+SELECT * FROM syn_c;
+ERROR HY000: Failed to load routine test.syn_c (internal code -6). For more details, run SHOW WARNINGS
+SHOW CREATE SYNONYM syn_c;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1
+DROP SYNONYM syn_c;
+#
+# Create synonym for a non-existing object, and then create the object
+#
+CREATE SYNONYM syn_t4 FOR t4;
+SELECT * FROM syn_t4;
+ERROR 42S02: Table 'test.t4' doesn't exist
+CREATE TABLE t4 (a INT);
+INSERT INTO syn_t4 VALUES (10), (11), (12);
+SELECT * FROM syn_t4;
+a
+10
+11
+12
+#
+# Create synonym with invalid DB name
+#
+CREATE SYNONYM `test `.syn_t4 FOR t4;
+ERROR 42000: Incorrect database name 'test '
+#
+# Create synonym with invalid name
+#
+CREATE SYNONYM `syn_t4 ` FOR t4;
+ERROR 42000: Incorrect routine name 'syn_t4 '
+#
+# Create synonym with invalid target's DB name
+#
+CREATE SYNONYM syn_t4 FOR `test `.t4;
+ERROR 42000: Incorrect database name 'test '
+#
+# Create synonym with invalid target's name
+#
+CREATE SYNONYM syn_t4 FOR `t4 `;
+ERROR 42000: Incorrect routine name 't4 '
+SET NAMES utf8;
+#
+# Create synonym with utf8 name
+#
+CREATE SYNONYM アキラ FOR t4;
+SELECT * FROM アキラ;
+a
+10
+11
+12
+SHOW CREATE SYNONYM アキラ;
+Synonym	sql_mode	Create Synonym	character_set_client	collation_connection	Database Collation
+アキラ	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE SYNONYM "test"."アキラ" FOR test.t4	utf8mb3	utf8mb3_uca1400_ai_ci	utf8mb4_uca1400_ai_ci
+DROP SYNONYM アキラ;
+#
+# Create synonym from within routines
+# In Oracle, this is not allowed
+#
+CREATE PROCEDURE p2 AS
+BEGIN
+CREATE SYNONYM syn_p2 FOR p2;
+END;
+$$
+ERROR 2F003: Can't create a SYNONYM from within another stored routine
+CREATE FUNCTION f2 RETURN INT AS
+BEGIN
+CREATE SYNONYM syn_p2 FOR p2;
+RETURN 1;
+END;
+$$
+ERROR 2F003: Can't create a SYNONYM from within another stored routine
+CREATE PACKAGE pkg2 AS
+FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg2 AS
+FUNCTION f1 RETURN INT AS
+BEGIN
+CREATE SYNONYM syn_p2 FOR p2;
+RETURN 1;
+END;
+END;
+$$
+ERROR 2F003: Can't create a SYNONYM from within another stored routine
+#
+# Drop PUBLIC SYNONYM without specifying PUBLIC
+#
+DROP SYNONYM syn_pub_t1;
+ERROR 42000: SYNONYM test.syn_pub_t1 does not exist
+#
+# Drop PUBLIC SYNONYM
+#
+DROP PUBLIC SYNONYM syn_pub_t1;
+DROP PUBLIC SYNONYM syn_pub_f1;
+#
+# Drop PUBLIC SYNONYM created by another USER
+#
+DROP PUBLIC SYNONYM syn_pub_t2;
+#
+# Drop non-existing PUBLIC SYNONYM
+#
+DROP PUBLIC SYNONYM syn_pub_t1;
+ERROR 42000: SYNONYM *any*.syn_pub_t1 does not exist
+DROP SYNONYM syn_a;
+DROP SYNONYM test.syn_b;
+DROP SYNONYM syn_syn_t1;
+DROP SYNONYM syn_t1;
+DROP SYNONYM syn_t2;
+DROP SYNONYM syn_t4;
+DROP SYNONYM syn_v1;
+DROP SYNONYM syn_seq;
+DROP SYNONYM syn_f1;
+DROP SYNONYM syn_p1;
+DROP SYNONYM syn_pkg1;
+DROP TABLE t1;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP VIEW v1;
+DROP VIEW v2;
+DROP SEQUENCE seq;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+USE db1;
+DROP TABLE t2;
+DROP SYNONYM syn_t2;
+DROP SYNONYM syn_t1;
+DROP DATABASE db1;
+USE test;
+DROP USER testuser;
+# select next value for s;
+#
+# select next value for syn_seq;

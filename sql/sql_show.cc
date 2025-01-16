@@ -573,6 +573,9 @@ static struct show_privileges_st sys_privileges[]=
   {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
   {"Usage","Server Admin","No privileges - allow connect only"},
   {"Show Create Routine","Databases,Functions,Procedures","To allow SHOW CREATE PROCEDURE/FUNCTION/PACKAGE"},
+  {"Create synonym","Databases","To create synonym"},
+  {"Alter synonym", "Databases", "To alter or drop synonyms"},
+  {"Create public synonym", "Server", "To create public synonym"},
   {NullS, NullS, NullS}
 };
 
