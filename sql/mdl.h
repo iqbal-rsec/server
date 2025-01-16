@@ -391,6 +391,7 @@ public:
                             PACKAGE_BODY,
                             TRIGGER,
                             EVENT,
+                            SYNONYM,
                             USER_LOCK,           /* user level locks. */
                             /* This should be the last ! */
                             NAMESPACE_END };

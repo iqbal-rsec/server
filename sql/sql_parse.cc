@@ -566,6 +566,8 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_EVENT]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_EVENT]=    CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_EVENT]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_CREATE_SYNONYM]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_DROP_SYNONYM]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
 
   sql_command_flags[SQLCOM_UPDATE]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
@@ -684,6 +686,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND | CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_SHOW_TABLES]=       (CF_STATUS_COMMAND | CF_SHOW_TABLE_COMMAND | CF_REEXECUTION_FRAGILE);
   sql_command_flags[SQLCOM_SHOW_TABLE_STATUS]= (CF_STATUS_COMMAND | CF_SHOW_TABLE_COMMAND | CF_REEXECUTION_FRAGILE);
+  sql_command_flags[SQLCOM_SHOW_CREATE_SYNONYM]= CF_STATUS_COMMAND;
 
 
   sql_command_flags[SQLCOM_CREATE_USER]=       CF_CHANGES_DATA;
@@ -3111,17 +3114,32 @@ mysql_create_routine(THD *thd, LEX *lex)
   if (Lex_ident_db::check_name_with_error(lex->sphead->m_db))
     return true;
 
-  if (check_access(thd, CREATE_PROC_ACL, lex->sphead->m_db.str,
+  bool is_synonym= lex->sphead->m_handler->type() == SP_TYPE_SYNONYM;
+  auto create_priv= !is_synonym ? CREATE_PROC_ACL : CREATE_SYNONYM_ACL;
+  if (is_synonym && lex->sphead->m_db.streq(any_db))
+    create_priv= CREATE_PUBLIC_SYNONYM_ACL;
+  if (check_access(thd, create_priv, lex->sphead->m_db.str,
                    NULL, NULL, 0, 0))
     return true;
 
   /* Checking the drop permissions if CREATE OR REPLACE is used */
   if (lex->create_info.or_replace())
   {
-    if (check_routine_access(thd, ALTER_PROC_ACL, &lex->sphead->m_db,
-                             &lex->sphead->m_name,
-                             Sp_handler::handler(lex->sql_command), 0))
-      return true;
+    if (!is_synonym)
+    {
+      if (check_routine_access(thd, ALTER_PROC_ACL, &lex->sphead->m_db,
+                              &lex->sphead->m_name,
+                              Sp_handler::handler(lex->sql_command), 0))
+        return true;
+    }
+    else
+    {
+      auto alter_priv= lex->sphead->m_db.streq(any_db) ?
+                        CREATE_PUBLIC_SYNONYM_ACL : ALTER_SYNONYM_ACL;
+      if (check_access(thd, alter_priv, lex->sphead->m_db.str,
+                   NULL, NULL, 0, 0))
+        return true;
+    }
   }
 
   const Lex_ident_routine name= Lex_ident_routine(*lex->sphead->name());
@@ -3185,7 +3203,7 @@ mysql_create_routine(THD *thd, LEX *lex)
       restore_backup_context= true;
     }
 
-    if (sp_automatic_privileges && !opt_noacl &&
+    if (sp_automatic_privileges && !opt_noacl && !is_synonym &&
         check_routine_access(thd, DEFAULT_CREATE_PROC_ACLS,
                              &lex->sphead->m_db, &name,
                              Sp_handler::handler(lex->sql_command), 1))
@@ -5640,6 +5658,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_SHOW_CREATE_FUNC:
   case SQLCOM_SHOW_CREATE_PACKAGE:
   case SQLCOM_SHOW_CREATE_PACKAGE_BODY:
+  case SQLCOM_SHOW_CREATE_SYNONYM:
     {
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
       const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
@@ -5886,6 +5905,18 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     res= lex->m_sql_cmd->execute(thd);
     DBUG_PRINT("result", ("res: %d  killed: %d  is_error(): %d",
                           res, thd->killed, thd->is_error()));
+    break;
+  case SQLCOM_CREATE_SYNONYM:
+    if (mysql_create_routine(thd, lex))
+      goto error;
+    my_ok(thd);
+    break;
+  case SQLCOM_DROP_SYNONYM:
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+
+    if (drop_routine(thd, lex))
+      goto error;
     break;
   default:
 
@@ -6489,10 +6520,21 @@ absent:
 
   const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
 
-  if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db,
+  bool is_synonym= sph->type() == SP_TYPE_SYNONYM;
+  if (!is_synonym)
+  {
+    if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db,
                            &lex->spname->m_name,
                            Sp_handler::handler(lex->sql_command), 0))
-    return 1;
+      return 1;
+  }
+  else
+  {
+    auto alter_priv= lex->spname->m_db.streq(any_db) ?
+                        CREATE_PUBLIC_SYNONYM_ACL : ALTER_SYNONYM_ACL;
+    if (check_access(thd, alter_priv, lex->spname->m_db.str, NULL, NULL, 0, 0))
+      return 1;
+  }
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
@@ -6518,7 +6560,7 @@ absent:
   close_thread_tables(thd);
 
   if (sp_result != SP_KEY_NOT_FOUND &&
-      sp_automatic_privileges && !opt_noacl &&
+      sp_automatic_privileges && !opt_noacl && !is_synonym &&
       sp_revoke_privileges(thd, lex->spname->m_db,
                            Lex_ident_routine(lex->spname->m_name),
                            Sp_handler::handler(lex->sql_command)))

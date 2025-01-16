@@ -112,6 +112,8 @@ enum enum_sql_command {
   SQLCOM_SHOW_PACKAGE_BODY_CODE,
   SQLCOM_BACKUP, SQLCOM_BACKUP_LOCK,
   SQLCOM_SHOW_CREATE_SERVER,
+  SQLCOM_CREATE_SYNONYM, SQLCOM_DROP_SYNONYM,
+  SQLCOM_SHOW_CREATE_SYNONYM,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc

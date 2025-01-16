@@ -29,6 +29,7 @@ static const LEX_STRING metadata_lock_info_lock_name[] = {
   { C_STRING_WITH_LEN("Stored package body metadata lock") },
   { C_STRING_WITH_LEN("Trigger metadata lock") },
   { C_STRING_WITH_LEN("Event metadata lock") },
+  { C_STRING_WITH_LEN("Synonym metadata lock") },
   { C_STRING_WITH_LEN("User lock") },
 };
 

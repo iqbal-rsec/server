@@ -219,6 +219,8 @@ public:
   LEX_CSTRING m_defstr;
   AUTHID      m_definer;
 
+  Database_qualified_name m_synonym_target;
+
   const st_sp_chistics &chistics() const { return m_chistics; }
   const LEX_CSTRING &comment() const { return m_chistics.comment; }
   void set_suid(enum_sp_suid_behaviour suid) { m_chistics.suid= suid; }

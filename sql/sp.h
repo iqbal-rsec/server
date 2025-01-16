@@ -44,6 +44,7 @@ struct TABLE;
 struct TABLE_LIST;
 typedef struct st_hash HASH;
 template <typename T> class SQL_I_List;
+struct Lex_ident_sys_st;
 
 /*
   Values for the type enum. This reflects the order of the enum declaration
@@ -56,8 +57,9 @@ enum enum_sp_type
   SP_TYPE_PROCEDURE=2,
   SP_TYPE_PACKAGE=3,
   SP_TYPE_PACKAGE_BODY=4,
-  SP_TYPE_TRIGGER=5,
-  SP_TYPE_EVENT=6,
+  SP_TYPE_SYNONYM=5,
+  SP_TYPE_TRIGGER=6,
+  SP_TYPE_EVENT=7,
 };
 
 class Sp_handler
@@ -82,6 +84,7 @@ protected:
   int db_find_and_cache_routine(THD *thd,
                                 const Database_qualified_name *name,
                                 sp_head **sp) const;
+  virtual
   int db_load_routine(THD *thd, const Database_qualified_name *name,
                       sp_head **sphp,
                       sql_mode_t sql_mode,
@@ -497,6 +500,63 @@ public:
 };
 
 
+class Sp_handler_synonym: public Sp_handler
+{
+public:
+  enum_sp_type type() const override { return SP_TYPE_SYNONYM; }
+  LEX_CSTRING type_lex_cstring() const override
+  {
+    static LEX_CSTRING m_type_str= { STRING_WITH_LEN("SYNONYM")};
+    return m_type_str;
+  }
+  enum_sql_command sqlcom_create() const override
+  {
+    return SQLCOM_CREATE_SYNONYM;
+  }
+  enum_sql_command sqlcom_drop() const override
+  {
+    return SQLCOM_DROP_SYNONYM;
+  }
+  const char *show_create_routine_col1_caption() const override
+  {
+    return "Synonym";
+  }
+  const char *show_create_routine_col3_caption() const override
+  {
+    return "Create Synonym";
+  }
+  MDL_key::enum_mdl_namespace get_mdl_type() const override
+  {
+    return MDL_key::SYNONYM;
+  }
+  const Sp_handler *sp_handler_mysql_proc() const override { return NULL; }
+  sp_cache **get_cache(THD *) const override;
+  bool show_create_sp(THD *thd, String *buf,
+                      const LEX_CSTRING &db,
+                      const LEX_CSTRING &name,
+                      const LEX_CSTRING &params,
+                      const LEX_CSTRING &returns,
+                      const LEX_CSTRING &body,
+                      const st_sp_chistics &chistics,
+                      const AUTHID &definer,
+                      const DDL_options_st ddl_options,
+                      sql_mode_t sql_mode) const override;
+
+  bool resolve_synonym(THD *thd, sp_name *name, bool &resolved) const;
+  bool resolve_synonym(THD *thd, bool fqtn, Lex_ident_db &db,
+                       Lex_ident_table &table_name) const;
+  bool resolve_synonym(THD *thd, Lex_ident_sys_st &db,
+                       Lex_ident_sys_st &pkg) const;
+
+  bool resolve_synonym_package(THD *thd, sp_name *name,
+                               const Sp_handler **sph, bool &resolved) const;
+protected:
+  bool resolve_synonym(THD *thd, bool fqtn, LEX_CSTRING &db,
+                       LEX_CSTRING &name, bool &resolved,
+                       List<sp_head>& list) const;
+};
+
+
 extern MYSQL_PLUGIN_IMPORT Sp_handler_function sp_handler_function;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_procedure sp_handler_procedure;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_package_spec sp_handler_package_spec;
@@ -504,6 +564,7 @@ extern MYSQL_PLUGIN_IMPORT Sp_handler_package_body sp_handler_package_body;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_package_function sp_handler_package_function;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_package_procedure sp_handler_package_procedure;
 extern MYSQL_PLUGIN_IMPORT Sp_handler_trigger sp_handler_trigger;
+extern MYSQL_PLUGIN_IMPORT Sp_handler_synonym sp_handler_synonym;
 
 
 inline const Sp_handler *Sp_handler::handler(enum_sql_command cmd)
@@ -534,6 +595,10 @@ inline const Sp_handler *Sp_handler::handler(enum_sql_command cmd)
   case SQLCOM_SHOW_STATUS_PACKAGE_BODY:
   case SQLCOM_SHOW_PACKAGE_BODY_CODE:
     return &sp_handler_package_body;
+  case SQLCOM_CREATE_SYNONYM:
+  case SQLCOM_DROP_SYNONYM:
+  case SQLCOM_SHOW_CREATE_SYNONYM:
+    return &sp_handler_synonym;
   default:
     break;
   }
@@ -555,6 +620,9 @@ inline const Sp_handler *Sp_handler::handler(enum_sp_type type)
   case SP_TYPE_TRIGGER:
     return &sp_handler_trigger;
   case SP_TYPE_EVENT:
+    break;
+  case SP_TYPE_SYNONYM:
+    return &sp_handler_synonym;
     break;
   }
   return NULL;
@@ -578,6 +646,8 @@ inline const Sp_handler *Sp_handler::handler(MDL_key::enum_mdl_namespace type)
   case MDL_key::USER_LOCK:
   case MDL_key::NAMESPACE_END:
     break;
+  case MDL_key::SYNONYM:
+    return &sp_handler_synonym;
   }
   return NULL;
 }

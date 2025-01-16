@@ -2717,11 +2717,13 @@ public:
   sp_cache *sp_func_cache;
   sp_cache *sp_package_spec_cache;
   sp_cache *sp_package_body_cache;
+  sp_cache *sp_synonym_cache;
   Sp_caches()
    :sp_proc_cache(NULL),
     sp_func_cache(NULL),
     sp_package_spec_cache(NULL),
-    sp_package_body_cache(NULL)
+    sp_package_body_cache(NULL),
+    sp_synonym_cache(NULL)
   { }
   ~Sp_caches()
   {
@@ -2730,6 +2732,7 @@ public:
     DBUG_ASSERT(sp_func_cache == NULL);
     DBUG_ASSERT(sp_package_spec_cache == NULL);
     DBUG_ASSERT(sp_package_body_cache == NULL);
+    DBUG_ASSERT(sp_synonym_cache == NULL);
   }
   void sp_caches_swap(Sp_caches &rhs)
   {
@@ -2737,6 +2740,7 @@ public:
     swap_variables(sp_cache*, sp_func_cache, rhs.sp_func_cache);
     swap_variables(sp_cache*, sp_package_spec_cache, rhs.sp_package_spec_cache);
     swap_variables(sp_cache*, sp_package_body_cache, rhs.sp_package_body_cache);
+    swap_variables(sp_cache*, sp_synonym_cache, rhs.sp_synonym_cache);
   }
   void sp_caches_clear();
   /**

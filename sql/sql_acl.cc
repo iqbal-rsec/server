@@ -1099,6 +1099,9 @@ class User_table_tabular: public User_table
 
     if ((access & ALL_KNOWN_ACL_100304) == ALL_KNOWN_ACL_100304)
       access|= SHOW_CREATE_ROUTINE_ACL;
+    
+    if ((access & ALL_KNOWN_ACL_110300) == ALL_KNOWN_ACL_110300)
+      access|= PRIV_SYNONYM_ACLS | CREATE_PUBLIC_SYNONYM_ACL;
 
     return access & GLOBAL_ACLS;
   }
@@ -1581,7 +1584,12 @@ class User_table_json: public User_table
       if (access & SUPER_ACL)
         access|= ALLOWED_BY_SUPER_BEFORE_101100;
     }
-    if (version_id >= 110300)
+    
+    if (version_id >= 110800)
+    {
+      mask= ALL_KNOWN_ACL_110800;
+    }
+    else if (version_id >= 110300)
     {
       mask= ALL_KNOWN_ACL_110300;
     }
@@ -2856,8 +2864,9 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     }
 #endif
     if (db_table.num_fields() <= 23)
-      if ((db.access | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
-        db.access|= SHOW_CREATE_ROUTINE_ACL;
+      if ((db.access | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL |
+           PRIV_SYNONYM_ACLS) == DB_ACLS)
+        db.access|= SHOW_CREATE_ROUTINE_ACL | PRIV_SYNONYM_ACLS;
     acl_dbs.push(db);
   }
   end_read_record(&read_record_info);
@@ -5164,8 +5173,9 @@ static int replace_db_table(TABLE *table, const char *db,
   rights=get_access(table,3);
   rights=fix_rights_for_db(rights);
   if (table->s->fields <= 23)
-    if ((rights | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL) == DB_ACLS)
-      rights|= SHOW_CREATE_ROUTINE_ACL;
+    if ((rights | SHOW_CREATE_ROUTINE_ACL | GRANT_ACL |
+         PRIV_SYNONYM_ACLS) == DB_ACLS)
+      rights|= SHOW_CREATE_ROUTINE_ACL | PRIV_SYNONYM_ACLS;
 
   if (old_row_exists)
   {
@@ -6406,6 +6416,7 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
     return PRIVS_TO_MERGE::PACKAGE_BODY;
   case SP_TYPE_EVENT:
   case SP_TYPE_TRIGGER:
+  case SP_TYPE_SYNONYM:
     break;
   }
   DBUG_ASSERT(0);
@@ -9389,7 +9400,8 @@ static const char *command_array[]=
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
   "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
   "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
-  "BINLOG REPLAY", "SLAVE MONITOR", "SHOW CREATE ROUTINE"
+  "BINLOG REPLAY", "SLAVE MONITOR", "SHOW CREATE ROUTINE",
+  "CREATE SYNONYM", "ALTER SYNONYM", "CREATE PUBLIC SYNONYM"
 };
 
 static uint command_lengths[]=
@@ -9402,7 +9414,8 @@ static uint command_lengths[]=
   11, 5, 7, 17, 14,
   8, 15, 16, 15,
   23, 24, 12,
-  13, 13, 19
+  13, 13, 19,
+  14, 13, 21
 };
 
 

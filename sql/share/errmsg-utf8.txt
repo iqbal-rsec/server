@@ -12299,3 +12299,7 @@ ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
 ER_INVALID_SCHEMA_NAME_LIST_SPEC
         eng "Invalid schema list specification"
+ER_SYNONYM_IS_CYCLICAL
+        eng "SYNONYM '%-.192s' is cyclical"
+ER_PUBLIC_SYNONYM_QUALIFIED
+        eng "PUBLIC SYNONYM must not be qualified"

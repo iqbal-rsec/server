@@ -507,7 +507,8 @@ ALTER TABLE proc MODIFY character_set_client
 ALTER TABLE proc MODIFY type enum('FUNCTION',
                                   'PROCEDURE',
                                   'PACKAGE',
-                                  'PACKAGE BODY') NOT NULL;
+                                  'PACKAGE BODY',
+                                  'SYNONYM') NOT NULL;
 
 ALTER TABLE procs_priv MODIFY Routine_type enum('FUNCTION',
                                                 'PROCEDURE',
@@ -723,6 +724,9 @@ SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv IS 
 SET @had_show_create_routine := 0;
 SELECT @had_show_create_routine:=1 FROM db WHERE Show_create_routine_priv IS NOT NULL;
 
+SET @had_create_synonym_priv := 0;
+SELECT @had_create_synonym_priv:=1 FROM db WHERE Create_synonym_priv IS NOT NULL;
+
 ALTER TABLE user add Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
 ALTER TABLE user modify Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
 ALTER TABLE db add Delete_history_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
@@ -733,6 +737,11 @@ UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_
 ALTER TABLE db ADD    Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N' AFTER Delete_history_priv;
 ALTER TABLE db MODIFY Show_create_routine_priv enum('N','Y') COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N';
 
+ALTER TABLE db ADD Create_synonym_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Show_create_routine_priv;
+ALTER TABLE db MODIFY Create_synonym_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE db ADD Alter_synonym_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL AFTER Create_synonym_priv;
+ALTER TABLE db MODIFY Alter_synonym_priv enum('N','Y') COLLATE utf8mb3_general_ci DEFAULT 'N' NOT NULL;
+
 UPDATE db SET Show_create_routine_priv='Y' WHERE @had_show_create_routine=0
   AND Drop_priv='Y' AND Index_priv='Y' AND Alter_priv='Y'
   AND Event_priv='Y' AND Select_priv='Y' AND Insert_priv='Y'
@@ -741,6 +750,16 @@ UPDATE db SET Show_create_routine_priv='Y' WHERE @had_show_create_routine=0
   AND References_priv='Y' AND Lock_tables_priv='Y' AND Create_view_priv='Y'
   AND Alter_routine_priv='Y' AND Create_routine_priv='Y'
   AND Delete_history_priv='Y' AND Create_tmp_table_priv='Y';
+
+UPDATE db SET Create_synonym_priv='Y',Alter_synonym_priv='Y' WHERE @had_create_synonym_priv=0
+  AND Drop_priv='Y' AND Index_priv='Y' AND Alter_priv='Y'
+  AND Event_priv='Y' AND Select_priv='Y' AND Insert_priv='Y'
+  AND Update_priv='Y' AND Delete_priv='Y' AND Create_priv='Y'
+  AND Execute_priv='Y' AND Trigger_priv='Y' AND Show_view_priv='Y'
+  AND References_priv='Y' AND Lock_tables_priv='Y' AND Create_view_priv='Y'
+  AND Alter_routine_priv='Y' AND Create_routine_priv='Y'
+  AND Delete_history_priv='Y' AND Create_tmp_table_priv='Y'
+  AND Show_create_routine_priv='Y';
 
 ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
                  ADD authentication_string TEXT NOT NULL AFTER plugin;

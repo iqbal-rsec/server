@@ -6069,6 +6069,9 @@ TABLE_LIST::TABLE_LIST(THD *thd,
   }
   else
     table_name= Lex_ident_table(table_ident->table);
+  
+  sp_handler_synonym.resolve_synonym(thd, fqtn, db, table_name);
+
   lock_type= lock_t;
   mdl_type= mdl_t;
   table_options= table_opts;

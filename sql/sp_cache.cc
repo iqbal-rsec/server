@@ -324,6 +324,7 @@ void Sp_caches::sp_caches_clear()
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
   sp_cache_clear(&sp_package_body_cache);
+  sp_cache_clear(&sp_synonym_cache);
 }
 
 void Sp_caches::sp_caches_empty()
@@ -336,4 +337,6 @@ void Sp_caches::sp_caches_empty()
     sp_package_spec_cache->clear();
   if (sp_package_body_cache)
     sp_package_body_cache->clear();
+  if (sp_synonym_cache)
+    sp_synonym_cache->clear();
 }

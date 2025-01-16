@@ -36,6 +36,8 @@
 #include <my_user.h>
 #include "mysql/psi/mysql_sp.h"
 
+#include "lex_ident_sys.h"
+
 sp_cache **Sp_handler_procedure::get_cache(THD *thd) const
 {
   return &thd->sp_proc_cache;
@@ -54,6 +56,11 @@ sp_cache **Sp_handler_package_spec::get_cache(THD *thd) const
 sp_cache **Sp_handler_package_body::get_cache(THD *thd) const
 {
   return &thd->sp_package_body_cache;
+}
+
+sp_cache **Sp_handler_synonym::get_cache(THD *thd) const
+{
+  return &thd->sp_synonym_cache;
 }
 
 
@@ -102,6 +109,7 @@ Sp_handler_package_body sp_handler_package_body;
 Sp_handler_trigger sp_handler_trigger;
 Sp_handler_package_procedure sp_handler_package_procedure;
 Sp_handler_package_function sp_handler_package_function;
+Sp_handler_synonym sp_handler_synonym;
 
 
 const Sp_handler *Sp_handler_procedure::package_routine_handler() const
@@ -975,7 +983,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
   LEX_STRING saved_cur_db_name=
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
-  bool cur_db_changed;
+  bool cur_db_changed= false;
   Bad_db_error_handler db_not_exists_handler;
 
   int ret= 0;
@@ -993,7 +1001,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
    */
 
   if (show_create_sp(thd, &defstr,
-                     null_clex_str, name->m_name,
+                     type() != SP_TYPE_SYNONYM ?
+                      null_clex_str : name->m_db, name->m_name,
                      params, returns, body,
                      chistics, definer, DDL_options(), sql_mode))
   {
@@ -1008,7 +1017,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
     TODO: why do we force switch here?
   */
 
-  if (mysql_opt_change_db(thd, &name->m_db, &saved_cur_db_name, TRUE,
+  if (type() != SP_TYPE_SYNONYM &&
+      mysql_opt_change_db(thd, &name->m_db, &saved_cur_db_name, TRUE,
                           &cur_db_changed))
   {
     ret= SP_INTERNAL_ERROR;
@@ -1082,6 +1092,190 @@ end:
   lex_end(thd->lex);
   thd->lex= old_lex;
   return ret;
+}
+
+
+bool
+Sp_handler_synonym::show_create_sp(THD *thd, String *buf,
+                                   const LEX_CSTRING &db,
+                                   const LEX_CSTRING &name,
+                                   const LEX_CSTRING &params,
+                                   const LEX_CSTRING &returns,
+                                   const LEX_CSTRING &body,
+                                   const st_sp_chistics &chistics,
+                                   const AUTHID &definer,
+                                   const DDL_options_st ddl_options,
+                                   sql_mode_t sql_mode) const
+{
+  Sql_mode_instant_set sms(thd, sql_mode);
+  bool is_public= any_db.bin_eq(db);
+  bool rc=
+    buf->append(STRING_WITH_LEN("CREATE ")) ||
+    (ddl_options.or_replace() &&
+     buf->append(STRING_WITH_LEN("OR REPLACE "))) ||
+    (is_public && buf->append(STRING_WITH_LEN("PUBLIC "))) ||
+    buf->append(type_lex_cstring()) ||
+    buf->append(' ') ||
+    (ddl_options.if_not_exists() &&
+     buf->append(STRING_WITH_LEN("IF NOT EXISTS "))) ||
+    ((db.length > 0 && !is_public) &&
+     (append_identifier(thd, buf, db.str, db.length) ||
+      buf->append('.'))) ||
+    append_identifier(thd, buf, name.str, name.length) ||
+    buf->append(' ') ||
+    buf->append(body.str, body.length);
+  return rc;
+}
+
+
+static
+bool cmp_sp_head_ptr(sp_head *a, sp_head *b)
+{
+  return a == b;
+}
+
+
+bool Sp_handler_synonym::resolve_synonym(THD *thd, bool fqtn, LEX_CSTRING &db,
+                       LEX_CSTRING &name, bool &resolved,
+                       List<sp_head>& sph_list) const
+{
+  if ((thd->variables.sql_mode & MODE_ORACLE) == 0)
+    return false;
+
+  if (unlikely(!db.str || Lex_ident_db::check_name(db)))
+    return false;
+
+  Database_qualified_name q_name(Lex_ident_db(db), name);
+  sp_head *sphead= nullptr;
+  if (!fqtn)
+  {
+    /*
+      If the name is not fully qualified, we need to try resolve it
+      as a public synonym first.
+    */
+    Database_qualified_name public_name(any_db, name);
+    sp_handler_synonym.sp_cache_routine_reentrant(thd, &public_name, &sphead);
+  }
+  
+  sphead || sp_handler_synonym.sp_cache_routine_reentrant(thd, &q_name,
+                                                          &sphead);
+  if (!sphead)
+    return false;
+  
+  /*
+    Check for cyclic synonyms.
+  */
+  if (unlikely(sph_list.add_unique(sphead, cmp_sp_head_ptr)))
+  {
+    my_error(ER_SYNONYM_IS_CYCLICAL, MYF(0),
+              sphead->to_identifier_chain2().make_qname(thd->mem_root).str);
+    return true;
+  }
+  
+  resolved= true;
+
+  db= sphead->m_synonym_target.m_db;
+  name= sphead->m_synonym_target.m_name;
+
+  /*
+    Resolve the synonym recursively.
+  */
+  return resolve_synonym(thd, true, db, name, resolved, sph_list);
+}
+
+
+bool Sp_handler_synonym::resolve_synonym(THD *thd, sp_name *name,
+                                         bool &resolved) const
+{
+  DBUG_ASSERT(name);
+
+  if (!mysqld_server_started)
+    return false;
+
+  List<sp_head> list;
+  if (resolve_synonym(thd, name->m_explicit_name, name->m_db,
+                      name->m_name, resolved, list))
+    return true;
+  
+  if (resolved)
+    name->m_explicit_name= true;
+  return false;
+}
+
+
+bool Sp_handler_synonym::resolve_synonym_package(THD *thd, sp_name *name,
+                                                 const Sp_handler **sph,
+                                                 bool &resolved) const
+{
+  if (resolve_synonym(thd, name, resolved))
+    return true;
+
+  if (!resolved && name->m_explicit_name && !name->m_db.streq(thd->db))
+  {
+    /*
+      Resolve SYNONYMs for packages
+      i.e. CALL synonym_package.proc_name();
+
+      We will create a temporary sp_name object with the same database
+      as the current one, and the package name from the synonym.
+    */
+    sp_name tmp(Lex_ident_db_normalized(thd->db), name->m_db, true);
+
+    if (resolve_synonym(thd, &tmp, resolved))
+      return true;
+    
+    if (!resolved)
+    {
+      /*
+        Resolve AS public synonym
+      */
+      tmp.m_db= any_db;
+      if (resolve_synonym(thd, &tmp, resolved))
+        return true;
+    }
+
+    if (resolved)
+    {
+      name->m_db= tmp.m_db;
+      // Concat `pkg` and `name` to `pkg.name`
+      Identifier_chain2 q_pkg_func(tmp.m_name, name->m_name);
+      LEX_CSTRING pkg_dot_func;
+      if (!(pkg_dot_func= q_pkg_func.make_qname(thd->mem_root)).str ||
+          check_ident_length(&pkg_dot_func))
+        return true;
+      
+      name->m_name= pkg_dot_func;
+      *sph= (*sph)->package_routine_handler();
+    }
+  }
+
+  return false;
+}
+
+
+bool Sp_handler_synonym::resolve_synonym(THD *thd, bool fqtn,
+                                         Lex_ident_db &db,
+                                         Lex_ident_table &table_name) const
+{
+  if (!mysqld_server_started || (db.streq("mysql"_LEX_CSTRING) &&
+       table_name.streq("proc"_LEX_CSTRING)))
+    return false;
+
+  List<sp_head> list;
+  bool resolved= false;
+  return resolve_synonym(thd, fqtn, db, table_name, resolved, list);
+}
+
+
+bool Sp_handler_synonym::resolve_synonym(THD *thd, Lex_ident_sys_st &db,
+                       Lex_ident_sys_st &pkg) const
+{
+  if (!mysqld_server_started)
+    return false;
+
+  List<sp_head> list;
+  bool resolved= false;
+  return resolve_synonym(thd, true, db, pkg, resolved, list);
 }
 
 
@@ -1303,7 +1497,11 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
     exists. Design note: This won't work on virtual databases
     like information_schema.
   */
-  if (check_db_dir_existence(sp->m_db.str))
+  if (type() == SP_TYPE_SYNONYM && sp->m_db.streq(any_db))
+  {
+    //  do nothing
+  }
+  else if (check_db_dir_existence(sp->m_db.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), sp->m_db.str);
     DBUG_RETURN(TRUE);
@@ -1335,6 +1533,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
         case SP_TYPE_PACKAGE_BODY:
         case SP_TYPE_FUNCTION:
         case SP_TYPE_PROCEDURE:
+        case SP_TYPE_SYNONYM:
           if (sp_drop_routine_internal(thd, sp, table))
             goto done;
           break;
@@ -2790,6 +2989,14 @@ Sp_handler::sp_resolve_package_routine(THD *thd,
 {
   if (!thd->db.length)
     return false;
+  
+  bool resolved= false;
+  if (unlikely(sp_handler_synonym.resolve_synonym_package(thd, name,
+                                             pkg_routine_handler, resolved)))
+    return true;
+  
+  if (resolved)
+    return false;
 
   return name->m_explicit_name ?
          sp_resolve_package_routine_explicit(thd, caller, name,
@@ -2824,6 +3031,14 @@ Sp_handler::sp_resolve_package_routine_sql_path(THD *thd,
 {
   bool ret= false;
   sp_name *qname= NULL;
+
+  bool resolved= false;
+  if (unlikely(sp_handler_synonym.resolve_synonym_package(thd, name,
+                                             pkg_routine_handler, resolved)))
+    return true;
+
+  if (resolved)
+    return false;
 
   if (!thd->db.length)
   {

@@ -555,6 +555,8 @@ call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, foun
 --echo # MDEV-33554 Upgrade from 11.2 to 11.3 changes root's privileges
 --echo #
 alter table mysql.db drop column show_create_routine_priv;
+alter table mysql.db drop column create_synonym_priv;
+alter table mysql.db drop column alter_synonym_priv;
 flush privileges;
 create user foo@bar;
 grant all privileges on mysql.* to foo@bar;
