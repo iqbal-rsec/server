@@ -1862,6 +1862,7 @@ THD::~THD()
 #if defined(ENABLED_DEBUG_SYNC)
   debug_sync_end_thread(this);
 #endif
+  variables.path.free();
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 

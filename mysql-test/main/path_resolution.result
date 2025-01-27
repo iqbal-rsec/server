@@ -18,7 +18,7 @@ ERROR 42000: FUNCTION func does not exist
 # sql_mode: DEFAULT | function | is unqualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT func();
 func()
 Invoke from Db: test, Rt: func
@@ -36,7 +36,7 @@ ERROR 42000: FUNCTION test2.func does not exist
 # sql_mode: DEFAULT | function | is unqualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT func();
 func()
@@ -53,11 +53,11 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT func();
 func()
 Invoke from Db: test, Rt: func
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT func();
 func()
 Invoke from Db: test2, Rt: func
@@ -77,7 +77,7 @@ SET @@path = DEFAULT;
 #
 USE test;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT func();
 func()
@@ -100,7 +100,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified function invocation in an unqualified function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 USE test;
@@ -135,7 +135,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified function invocation in an unqualified function
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 USE test;
@@ -181,7 +181,7 @@ ERROR 42000: FUNCTION pack.func does not exist
 # sql_mode: DEFAULT | function | is qualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
@@ -199,7 +199,7 @@ ERROR 42000: FUNCTION pack.func does not exist
 # sql_mode: DEFAULT | function | is qualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT pack.func();
 pack.func()
@@ -223,11 +223,11 @@ $$
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test2, Pack: pack, Rt: func
@@ -256,7 +256,7 @@ CREATE PACKAGE BODY pack
 FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT pack.func();
 pack.func()
@@ -288,7 +288,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified function invocation in a qualified package function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
 USE test;
@@ -331,7 +331,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified function invocation in a qualified package function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
 USE test;
@@ -367,7 +367,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test qualified package function invocation in a qualified package function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PACKAGE pack2
 FUNCTION func() RETURNS TEXT;
@@ -426,7 +426,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test qualified package function invocation in a qualified package function
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE PACKAGE pack2
 FUNCTION func() RETURNS TEXT;
@@ -496,7 +496,7 @@ DROP DATABASE deselect_db;
 SELECT pack.func();
 pack.func()
 Invoke from Db: pack, Rt: func
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
@@ -560,7 +560,7 @@ USE test2;
 SELECT pack.func();
 pack.func()
 Invoke from Db: pack, Rt: func
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
@@ -580,7 +580,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # qualified package function invoke internal private function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
 USE test;
@@ -607,7 +607,7 @@ SET @@path = DEFAULT;
 # curr db: test2 | path set: yes
 # qualified package function invoke internal private function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 SELECT pack.func_pub();
 pack.func_pub()
@@ -634,7 +634,7 @@ ERROR 3D000: No database selected
 # sql_mode: DEFAULT | procedure | is unqualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL proc;
 Invoke from Db: test, Rt: proc
 Invoke from Db: test, Rt: proc
@@ -652,7 +652,7 @@ ERROR 42000: PROCEDURE test2.proc does not exist
 # sql_mode: DEFAULT | procedure | is unqualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL proc;
 Invoke from Db: test, Rt: proc
@@ -669,11 +669,11 @@ CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL proc;
 Invoke from Db: test, Rt: proc
 Invoke from Db: test, Rt: proc
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL proc;
 Invoke from Db: test2, Rt: proc
 Invoke from Db: test2, Rt: proc
@@ -693,7 +693,7 @@ SET @@path = DEFAULT;
 #
 USE test;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL proc;
 Invoke from Db: test, Rt: proc
@@ -716,7 +716,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified procedure invocation in an unqualified procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 USE test;
@@ -751,7 +751,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified procedure invocation in an unqualified procedure
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 USE test;
@@ -797,7 +797,7 @@ ERROR 42000: PROCEDURE pack.proc does not exist
 # sql_mode: DEFAULT | procedure | is qualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -815,7 +815,7 @@ ERROR 42000: PROCEDURE pack.proc does not exist
 # sql_mode: DEFAULT | procedure | is qualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -839,11 +839,11 @@ $$
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL pack.proc;
 Invoke from Db: test2, Pack: pack, Rt: proc
 Invoke from Db: test2, Pack: pack, Rt: proc
@@ -872,7 +872,7 @@ CREATE PACKAGE BODY pack
 PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -904,7 +904,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified procedure invocation in a qualified package procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
 USE test;
@@ -947,7 +947,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified procedure invocation in a qualified package procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
 USE test;
@@ -983,7 +983,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test qualified package procedure invocation in a qualified package procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PACKAGE pack2
 PROCEDURE proc();
@@ -1042,7 +1042,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test qualified package procedure invocation in a qualified package procedure
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE PACKAGE pack2
 PROCEDURE proc();
@@ -1112,7 +1112,7 @@ DROP DATABASE deselect_db;
 CALL pack.proc;
 Invoke from Db: pack, Rt: proc
 Invoke from Db: pack, Rt: proc
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -1176,7 +1176,7 @@ USE test2;
 CALL pack.proc;
 Invoke from Db: pack, Rt: proc
 Invoke from Db: pack, Rt: proc
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -1196,7 +1196,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # qualified package procedure invoke internal private procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv';
 USE test;
@@ -1223,7 +1223,7 @@ SET @@path = DEFAULT;
 # curr db: test2 | path set: yes
 # qualified package procedure invoke internal private procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CALL pack.proc_pub;
 Invoke from Db: test, Pack: pack, Rt: proc_prv
@@ -1257,7 +1257,7 @@ ERROR 42000: FUNCTION func does not exist
 # sql_mode: ORACLE | function | is unqualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT func();
 func()
 Invoke from Db: test, Rt: func
@@ -1275,7 +1275,7 @@ ERROR 42000: FUNCTION test2.func does not exist
 # sql_mode: ORACLE | function | is unqualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT func();
 func()
@@ -1297,11 +1297,11 @@ $$
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT func();
 func()
 Invoke from Db: test, Rt: func
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT func();
 func()
 Invoke from Db: test2, Rt: func
@@ -1326,7 +1326,7 @@ BEGIN
 RETURN 'Invoke from Db: test, Rt: func';
 END;
 $$
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT func();
 func()
@@ -1354,7 +1354,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified function invocation in an unqualified function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func()
 RETURN TEXT AS
@@ -1404,7 +1404,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified function invocation in an unqualified function
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE FUNCTION func()
 RETURN TEXT AS
@@ -1468,7 +1468,7 @@ ERROR 42000: FUNCTION pack.func does not exist
 # sql_mode: ORACLE | function | is qualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
@@ -1486,7 +1486,7 @@ ERROR 42000: FUNCTION pack.func does not exist
 # sql_mode: ORACLE | function | is qualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT pack.func();
 pack.func()
@@ -1513,11 +1513,11 @@ $$
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test2, Pack: pack, Rt: func
@@ -1549,7 +1549,7 @@ RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 END;
 $$
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 SELECT pack.func();
 pack.func()
@@ -1584,7 +1584,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified function invocation in a qualified package function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func_local()
 RETURN TEXT AS
@@ -1640,7 +1640,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified function invocation in a qualified package function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func_local()
 RETURN TEXT AS
@@ -1689,7 +1689,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test qualified package function invocation in a qualified package function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PACKAGE pack2 AS
 FUNCTION func() RETURN TEXT;
@@ -1757,7 +1757,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test qualified package function invocation in a qualified package function
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE PACKAGE pack2 AS
 FUNCTION func() RETURN TEXT;
@@ -1844,7 +1844,7 @@ DROP DATABASE deselect_db;
 SELECT pack.func();
 pack.func()
 Invoke from Db: pack, Rt: func
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
@@ -1924,7 +1924,7 @@ USE test2;
 SELECT pack.func();
 pack.func()
 Invoke from Db: pack, Rt: func
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 pack.func()
 Invoke from Db: test, Pack: pack, Rt: func
@@ -1944,7 +1944,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # qualified package function invoke internal private function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE FUNCTION func_prv()
 RETURN TEXT AS
@@ -1987,7 +1987,7 @@ SET @@path = DEFAULT;
 # curr db: test2 | path set: yes
 # qualified package function invoke internal private function
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 SELECT pack.func_pub();
 pack.func_pub()
@@ -2019,7 +2019,7 @@ ERROR 3D000: No database selected
 # sql_mode: ORACLE | procedure | is unqualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL proc;
 Invoke from Db: test, Rt: proc
 Invoke from Db: test, Rt: proc
@@ -2037,7 +2037,7 @@ ERROR 42000: PROCEDURE test2.proc does not exist
 # sql_mode: ORACLE | procedure | is unqualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL proc;
 Invoke from Db: test, Rt: proc
@@ -2058,11 +2058,11 @@ $$
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL proc;
 Invoke from Db: test, Rt: proc
 Invoke from Db: test, Rt: proc
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL proc;
 Invoke from Db: test2, Rt: proc
 Invoke from Db: test2, Rt: proc
@@ -2086,7 +2086,7 @@ BEGIN
 SELECT 'Invoke from Db: test, Rt: proc';
 END;
 $$
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL proc;
 Invoke from Db: test, Rt: proc
@@ -2113,7 +2113,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified procedure invocation in an unqualified procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc() AS
 BEGIN
@@ -2160,7 +2160,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified procedure invocation in an unqualified procedure
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE PROCEDURE proc() AS
 BEGIN
@@ -2221,7 +2221,7 @@ ERROR 42000: PROCEDURE pack.proc does not exist
 # sql_mode: ORACLE | procedure | is qualified
 # curr db: X | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -2239,7 +2239,7 @@ ERROR 42000: PROCEDURE pack.proc does not exist
 # sql_mode: ORACLE | procedure | is qualified
 # curr db: test2 | path set: yes
 #
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -2266,11 +2266,11 @@ $$
 CREATE DATABASE deselect_db;
 USE deselect_db;
 DROP DATABASE deselect_db;
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL pack.proc;
 Invoke from Db: test2, Pack: pack, Rt: proc
 Invoke from Db: test2, Pack: pack, Rt: proc
@@ -2302,7 +2302,7 @@ SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 END;
 $$
-SET path 'sys,test';
+SET PATH= 'sys,test';
 USE test2;
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -2337,7 +2337,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test unqualified procedure invocation in a qualified package procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc_local() AS
 BEGIN
@@ -2391,7 +2391,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test unqualified procedure invocation in a qualified package procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc_local() AS
 BEGIN
@@ -2438,7 +2438,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # to test qualified package procedure invocation in a qualified package procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PACKAGE pack2 AS
 PROCEDURE proc();
@@ -2506,7 +2506,7 @@ SET @@path = DEFAULT;
 # curr db: test | path set: yes
 # to test qualified package procedure invocation in a qualified package procedure
 #
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 USE test2;
 CREATE PACKAGE pack2 AS
 PROCEDURE proc();
@@ -2592,7 +2592,7 @@ DROP DATABASE deselect_db;
 CALL pack.proc;
 Invoke from Db: pack, Rt: proc
 Invoke from Db: pack, Rt: proc
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -2670,7 +2670,7 @@ USE test2;
 CALL pack.proc;
 Invoke from Db: pack, Rt: proc
 Invoke from Db: pack, Rt: proc
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 Invoke from Db: test, Pack: pack, Rt: proc
 Invoke from Db: test, Pack: pack, Rt: proc
@@ -2690,7 +2690,7 @@ SET @@path = DEFAULT;
 # curr db: X | path set: yes
 # qualified package procedure invoke internal private procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CREATE PROCEDURE proc_prv() AS
 BEGIN
@@ -2731,7 +2731,7 @@ SET @@path = DEFAULT;
 # curr db: test2 | path set: yes
 # qualified package procedure invoke internal private procedure
 #
-SET path 'test,test2';
+SET PATH= 'test,test2';
 USE test2;
 CALL pack.proc_pub;
 Invoke from Db: test, Pack: pack, Rt: proc_prv
@@ -2743,6 +2743,264 @@ DROP PROCEDURE proc_prv;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 SET @@path = DEFAULT;
+#
+# Resolution of routines in stored routines should be based on
+# the current path, not the path at the time of creation.
+#
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+CREATE DATABASE test3;
+USE test3;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test3, Rt: func';
+CREATE DATABASE test2;
+USE test2;
+SET @@path= 'test';
+CREATE FUNCTION func2() RETURNS TEXT RETURN func();
+USE test;
+SET @@path= 'test3';
+SELECT test2.func2();
+test2.func2()
+Invoke from Db: test3, Rt: func
+SET @@path= 'test';
+SELECT test2.func2();
+test2.func2()
+Invoke from Db: test, Rt: func
+DROP FUNCTION test.func;
+DROP DATABASE test2;
+DROP DATABASE test3;
+#
+# Internal schema (function_call_keyword:)
+#
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+SELECT trim('     ');
+trim('     ')
+
+SET @@path= 'oracle_schema';
+SELECT trim('     ');
+trim('     ')
+NULL
+SET sql_mode='oracle';
+SET @@path= 'mariadb_schema';
+SELECT trim('     ');
+trim('     ')
+
+#
+# Internal schema (function_call_keyword:)
+# Views must behave as it was during creation time, regardless of
+# the current path
+#
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE VIEW v_oracle AS SELECT trim('     ');
+SELECT * FROM v_oracle;
+trim('     ')
+NULL
+SET @@path= 'mariadb_schema';
+SELECT * FROM v_oracle;
+trim('     ')
+NULL
+SHOW CREATE VIEW v_oracle;
+View	Create View	character_set_client	collation_connection
+v_oracle	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_oracle` AS select oracle_schema.trim('     ') AS `trim('     ')`	latin1	latin1_swedish_ci
+DROP VIEW v_oracle;
+SET @@path= 'mariadb_schema';
+CREATE VIEW v_mariadb AS SELECT trim('     ');
+SELECT * FROM v_mariadb;
+trim('     ')
+
+SET @@path= 'oracle_schema';
+SELECT * FROM v_mariadb;
+trim('     ')
+
+SHOW CREATE VIEW v_mariadb;
+View	Create View	character_set_client	collation_connection
+v_mariadb	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_mariadb` AS select mariadb_schema.trim('     ') AS `trim('     ')`	latin1	latin1_swedish_ci
+DROP VIEW v_mariadb;
+#
+# Internal schema (function_call_keyword:)
+# Native functions gets resolved with the execution path not the creation path
+# TODO: This behavior is not consistent with the behavior with sql_mode but
+# it is consistent with the behavior of stored routines
+#
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE FUNCTION func_oracle() RETURNS TEXT RETURN trim('     ');
+SELECT func_oracle();
+func_oracle()
+NULL
+SET @@path= 'mariadb_schema';
+SELECT func_oracle();
+func_oracle()
+
+DROP FUNCTION func_oracle;
+SET @@path= 'mariadb_schema';
+CREATE FUNCTION func_mariadb() RETURNS TEXT RETURN trim('     ');
+SELECT func_mariadb();
+func_mariadb()
+
+SET @@path= 'oracle_schema';
+SELECT func_mariadb();
+func_mariadb()
+NULL
+DROP FUNCTION func_mariadb;
+#
+# Internal schema (function_call_generic:)
+#
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+CONCAT('Ma', 'ria', NULL, 'DB')
+NULL
+SET @@path= 'oracle_schema';
+SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+CONCAT('Ma', 'ria', NULL, 'DB')
+MariaDB
+SET sql_mode='oracle';
+SET @@path= 'mariadb_schema';
+SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+CONCAT('Ma', 'ria', NULL, 'DB')
+NULL
+#
+# Internal schema (function_call_generic:)
+# Views must behave as it was during creation time, regardless of
+# the current path
+#
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE VIEW v_oracle AS SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT * FROM v_oracle;
+CONCAT('Ma', 'ria', NULL, 'DB')
+MariaDB
+SET @@path= 'mariadb_schema';
+SELECT * FROM v_oracle;
+CONCAT('Ma', 'ria', NULL, 'DB')
+MariaDB
+SHOW CREATE VIEW v_oracle;
+View	Create View	character_set_client	collation_connection
+v_oracle	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_oracle` AS select oracle_schema.concat('Ma','ria',NULL,'DB') AS `CONCAT('Ma', 'ria', NULL, 'DB')`	latin1	latin1_swedish_ci
+DROP VIEW v_oracle;
+SET @@path= 'mariadb_schema';
+CREATE VIEW v_mariadb AS SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT * FROM v_mariadb;
+CONCAT('Ma', 'ria', NULL, 'DB')
+NULL
+SET @@path= 'oracle_schema';
+SELECT * FROM v_mariadb;
+CONCAT('Ma', 'ria', NULL, 'DB')
+NULL
+SHOW CREATE VIEW v_mariadb;
+View	Create View	character_set_client	collation_connection
+v_mariadb	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_mariadb` AS select mariadb_schema.concat('Ma','ria',NULL,'DB') AS `CONCAT('Ma', 'ria', NULL, 'DB')`	latin1	latin1_swedish_ci
+DROP VIEW v_mariadb;
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+#
+# Internal schema (function_call_generic:)
+# Native functions gets resolved with the execution path not the creation path
+# TODO: This behavior is not consistent with the behavior with sql_mode but
+# it is consistent with the behavior of stored routines
+#
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE FUNCTION func_oracle() RETURNS TEXT RETURN CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT func_oracle();
+func_oracle()
+MariaDB
+SET @@path= 'mariadb_schema';
+SELECT func_oracle();
+func_oracle()
+NULL
+DROP FUNCTION func_oracle;
+SET @@path= 'mariadb_schema';
+CREATE FUNCTION func_mariadb() RETURNS TEXT RETURN CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT func_mariadb();
+func_mariadb()
+NULL
+SET @@path= 'oracle_schema';
+SELECT func_mariadb();
+func_mariadb()
+MariaDB
+DROP FUNCTION func_mariadb;
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+#
+# Internal schema (type mapping for SHOW CREATE TABLE)
+#
+CREATE TABLE t1 (a DATE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SET @@path= 'oracle_schema';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mariadb_schema.date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+#
+# Path resolution where database name contains ','
+#
+CREATE DATABASE `a,b`;
+USE `a,b`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \"a,b\", Rt: func';
+USE test;
+SELECT func();
+ERROR 42000: FUNCTION test.func does not exist
+SET @@path= '`a,b`';
+SELECT func();
+func()
+Invoke from Db: "a,b", Rt: func
+DROP DATABASE `a,b`;
+USE test;
+#
+# Path resolution where database name contains '"'
+#
+CREATE DATABASE `"`;
+USE `"`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \", Rt: func';
+USE test;
+SELECT func();
+ERROR 42000: FUNCTION test.func does not exist
+SET @@path= '`"`';
+SELECT func();
+func()
+Invoke from Db: ", Rt: func
+DROP DATABASE `"`;
+USE test;
+SET @@path= DEFAULT;
+#
+# Modify session path within a stored routine
+# This is not allowed since we invalidate the sp caches when the session
+# path is changed
+#
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+SET @@path= 'sys';
+RETURN '';
+END;
+$$
+SELECT func();
+ERROR HY000: The system variable path cannot be set in stored functions or triggers
+DROP FUNCTION func;
+#
+# Modify global path within a stored routine
+#
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+SET @@global.path= 'sys';
+RETURN '';
+END;
+$$
+SELECT func();
+func()
+
+SET @@global.path= DEFAULT;
+DROP FUNCTION func;
 #
 # End of 11.8 tests
 #

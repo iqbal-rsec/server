@@ -7587,8 +7587,9 @@ sp_name *LEX::make_sp_name_sql_path(THD *thd, const Lex_ident_sys_st &name)
   db= copy_db_normalized(false);
   if (!db.str)
   {
-    if (thd->sql_path.find_db_unqualified(thd, name, &sp_handler_procedure,
-                                          NULL, &res))
+    if (thd->variables.path.find_db_unqualified(thd, name,
+                                                &sp_handler_procedure, NULL,
+                                                &res))
       return NULL;
 
     if (!res)

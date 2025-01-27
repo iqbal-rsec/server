@@ -4,7 +4,7 @@
 ######################################################################################
 #                             Path resolution                                        #
 ######################################################################################
-# The path resolution unit test basically contains with 8 kind of tests.             #
+# The path resolution unit test contains 8 kinds of tests.                           #
 # Following listed the types sequence in this test:                                  #
 # type 1: MariaDB Default SQL/PSM mode syntax, unqualified function                  #
 # type 2: MariaDB Default SQL/PSM mode syntax, qualified function, ie: with package  #
@@ -54,7 +54,7 @@ SELECT func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 SELECT func();
@@ -84,7 +84,7 @@ SELECT func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -108,9 +108,9 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT func();
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT func();
 DROP FUNCTION test2.func;
 SELECT func();
@@ -134,7 +134,7 @@ USE test;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -162,7 +162,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
@@ -200,7 +200,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
@@ -261,7 +261,7 @@ SELECT pack.func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 SELECT pack.func();
@@ -291,7 +291,7 @@ SELECT pack.func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -324,9 +324,9 @@ DELIMITER ;$$
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT pack.func();
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT pack.func();
 DROP PACKAGE BODY test2.pack;
 DROP PACKAGE test2.pack;
@@ -362,7 +362,7 @@ $$
 DELIMITER ;$$
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -401,7 +401,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
@@ -449,7 +449,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
@@ -493,7 +493,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -561,7 +561,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 DELIMITER $$;
@@ -646,7 +646,7 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 # subtest start
 SELECT pack.func();
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -723,7 +723,7 @@ CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 USE test2;
 SELECT pack.func();
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -746,7 +746,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
@@ -783,7 +783,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 SELECT pack.func_pub();
@@ -821,7 +821,7 @@ CALL proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 CALL proc;
@@ -851,7 +851,7 @@ CALL proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -875,9 +875,9 @@ CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL proc;
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL proc;
 DROP PROCEDURE test2.proc;
 CALL proc;
@@ -901,7 +901,7 @@ USE test;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -929,7 +929,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
@@ -967,7 +967,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
@@ -1028,7 +1028,7 @@ CALL pack.proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 CALL pack.proc;
@@ -1058,7 +1058,7 @@ CALL pack.proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -1091,9 +1091,9 @@ DELIMITER ;$$
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL pack.proc;
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL pack.proc;
 DROP PACKAGE BODY test2.pack;
 DROP PACKAGE test2.pack;
@@ -1129,7 +1129,7 @@ $$
 DELIMITER ;$$
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -1168,7 +1168,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
@@ -1216,7 +1216,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
@@ -1260,7 +1260,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -1328,7 +1328,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 DELIMITER $$;
@@ -1413,7 +1413,7 @@ CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 # subtest start
 CALL pack.proc;
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -1490,7 +1490,7 @@ CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 USE test2;
 CALL pack.proc;
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -1513,7 +1513,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv';
@@ -1550,7 +1550,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CALL pack.proc_pub;
@@ -1599,7 +1599,7 @@ SELECT func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 SELECT func();
@@ -1629,7 +1629,7 @@ SELECT func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -1660,9 +1660,9 @@ DELIMITER ;$$
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT func();
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT func();
 DROP FUNCTION test2.func;
 SELECT func();
@@ -1693,7 +1693,7 @@ $$
 DELIMITER ;$$
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -1728,7 +1728,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -1787,7 +1787,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 DELIMITER $$;
@@ -1872,7 +1872,7 @@ SELECT pack.func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 SELECT pack.func();
@@ -1902,7 +1902,7 @@ SELECT pack.func();
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -1938,9 +1938,9 @@ DELIMITER ;$$
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 SELECT pack.func();
-SET path 'test2,test';
+SET PATH= 'test2,test';
 SELECT pack.func();
 DROP PACKAGE BODY test2.pack;
 DROP PACKAGE test2.pack;
@@ -1979,7 +1979,7 @@ $$
 DELIMITER ;$$
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -2021,7 +2021,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -2086,7 +2086,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -2147,7 +2147,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -2224,7 +2224,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 DELIMITER $$;
@@ -2328,7 +2328,7 @@ DELIMITER ;$$
 # subtest start
 SELECT pack.func();
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -2425,7 +2425,7 @@ DELIMITER ;$$
 USE test2;
 SELECT pack.func();
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 SELECT pack.func();
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -2448,7 +2448,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -2503,7 +2503,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 SELECT pack.func_pub();
@@ -2549,7 +2549,7 @@ CALL proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 CALL proc;
@@ -2579,7 +2579,7 @@ CALL proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -2609,9 +2609,9 @@ DELIMITER ;$$
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL proc;
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL proc;
 DROP PROCEDURE test2.proc;
 CALL proc;
@@ -2641,7 +2641,7 @@ $$
 DELIMITER ;$$
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -2675,7 +2675,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -2731,7 +2731,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 DELIMITER $$;
@@ -2813,7 +2813,7 @@ CALL pack.proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 CALL pack.proc;
@@ -2843,7 +2843,7 @@ CALL pack.proc;
 --echo #
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -2879,9 +2879,9 @@ DELIMITER ;$$
 # subtest start
 --source include/deselect_db.inc
 # set path
-SET path 'test,test2';
+SET PATH= 'test,test2';
 CALL pack.proc;
-SET path 'test2,test';
+SET PATH= 'test2,test';
 CALL pack.proc;
 DROP PACKAGE BODY test2.pack;
 DROP PACKAGE test2.pack;
@@ -2920,7 +2920,7 @@ $$
 DELIMITER ;$$
 
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 
 # subtest start
 USE test2;
@@ -2962,7 +2962,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -3025,7 +3025,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -3084,7 +3084,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -3161,7 +3161,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'sys,test2';
+SET PATH= 'sys,test2';
 
 USE test2;
 DELIMITER $$;
@@ -3264,7 +3264,7 @@ DELIMITER ;$$
 # subtest start
 CALL pack.proc;
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -3359,7 +3359,7 @@ DELIMITER ;$$
 USE test2;
 CALL pack.proc;
 # set path
-SET path 'sys,test';
+SET PATH= 'sys,test';
 CALL pack.proc;
 DROP PACKAGE BODY test.pack;
 DROP PACKAGE test.pack;
@@ -3382,7 +3382,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 DELIMITER $$;
@@ -3435,7 +3435,7 @@ SET @@path = DEFAULT;
 --echo #
 
 # subtest start
-SET path 'test,test2';
+SET PATH= 'test,test2';
 
 USE test2;
 CALL pack.proc_pub;
@@ -3449,7 +3449,236 @@ DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 SET @@path = DEFAULT;
 
+--echo #
+--echo # Resolution of routines in stored routines should be based on
+--echo # the current path, not the path at the time of creation.
+--echo #
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
+CREATE DATABASE test3;
+USE test3;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test3, Rt: func';
+
+CREATE DATABASE test2;
+USE test2;
+SET @@path= 'test';
+CREATE FUNCTION func2() RETURNS TEXT RETURN func();
+
+USE test;
+SET @@path= 'test3';
+SELECT test2.func2();
+SET @@path= 'test';
+SELECT test2.func2();
+
+DROP FUNCTION test.func;
+DROP DATABASE test2;
+DROP DATABASE test3;
+
+--echo #
+--echo # Internal schema (function_call_keyword:)
+--echo #
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+SELECT trim('     ');
+SET @@path= 'oracle_schema';
+SELECT trim('     ');
+SET sql_mode='oracle';
+SET @@path= 'mariadb_schema';
+SELECT trim('     ');
+
+
+--echo #
+--echo # Internal schema (function_call_keyword:)
+--echo # Views must behave as it was during creation time, regardless of
+--echo # the current path
+--echo #
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE VIEW v_oracle AS SELECT trim('     ');
+SELECT * FROM v_oracle;
+SET @@path= 'mariadb_schema';
+SELECT * FROM v_oracle;
+SHOW CREATE VIEW v_oracle;
+
+DROP VIEW v_oracle;
+
+SET @@path= 'mariadb_schema';
+CREATE VIEW v_mariadb AS SELECT trim('     ');
+SELECT * FROM v_mariadb;
+SET @@path= 'oracle_schema';
+SELECT * FROM v_mariadb;
+SHOW CREATE VIEW v_mariadb;
+
+DROP VIEW v_mariadb;
+
+--echo #
+--echo # Internal schema (function_call_keyword:)
+--echo # Native functions gets resolved with the execution path not the creation path
+--echo # TODO: This behavior is not consistent with the behavior with sql_mode but
+--echo # it is consistent with the behavior of stored routines
+--echo #
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE FUNCTION func_oracle() RETURNS TEXT RETURN trim('     ');
+SELECT func_oracle();
+SET @@path= 'mariadb_schema';
+SELECT func_oracle();
+
+DROP FUNCTION func_oracle;
+
+SET @@path= 'mariadb_schema';
+CREATE FUNCTION func_mariadb() RETURNS TEXT RETURN trim('     ');
+SELECT func_mariadb();
+SET @@path= 'oracle_schema';
+SELECT func_mariadb();
+
+DROP FUNCTION func_mariadb;
+
+
+--echo #
+--echo # Internal schema (function_call_generic:)
+--echo #
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+SET @@path= 'oracle_schema';
+SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+SET sql_mode='oracle';
+SET @@path= 'mariadb_schema';
+SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+
+--echo #
+--echo # Internal schema (function_call_generic:)
+--echo # Views must behave as it was during creation time, regardless of
+--echo # the current path
+--echo #
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE VIEW v_oracle AS SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT * FROM v_oracle;
+SET @@path= 'mariadb_schema';
+SELECT * FROM v_oracle;
+SHOW CREATE VIEW v_oracle;
+
+DROP VIEW v_oracle;
+
+SET @@path= 'mariadb_schema';
+CREATE VIEW v_mariadb AS SELECT CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT * FROM v_mariadb;
+SET @@path= 'oracle_schema';
+SELECT * FROM v_mariadb;
+SHOW CREATE VIEW v_mariadb;
+
+DROP VIEW v_mariadb;
+
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+
+--echo #
+--echo # Internal schema (function_call_generic:)
+--echo # Native functions gets resolved with the execution path not the creation path
+--echo # TODO: This behavior is not consistent with the behavior with sql_mode but
+--echo # it is consistent with the behavior of stored routines
+--echo #
+SET @@path= 'oracle_schema';
+SET sql_mode= DEFAULT;
+CREATE FUNCTION func_oracle() RETURNS TEXT RETURN CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT func_oracle();
+SET @@path= 'mariadb_schema';
+SELECT func_oracle();
+
+DROP FUNCTION func_oracle;
+
+SET @@path= 'mariadb_schema';
+CREATE FUNCTION func_mariadb() RETURNS TEXT RETURN CONCAT('Ma', 'ria', NULL, 'DB');
+SELECT func_mariadb();
+SET @@path= 'oracle_schema';
+SELECT func_mariadb();
+
+DROP FUNCTION func_mariadb;
+
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+
+--echo #
+--echo # Internal schema (type mapping for SHOW CREATE TABLE)
+--echo #
+CREATE TABLE t1 (a DATE);
+SHOW CREATE TABLE t1;
+SET @@path= 'oracle_schema';
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Path resolution where database name contains ','
+--echo #
+CREATE DATABASE `a,b`;
+USE `a,b`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \"a,b\", Rt: func';
+
+USE test;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+SET @@path= '`a,b`';
+SELECT func();
+
+DROP DATABASE `a,b`;
+USE test;
+
+--echo #
+--echo # Path resolution where database name contains '"'
+--echo #
+CREATE DATABASE `"`;
+USE `"`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \", Rt: func';
+
+USE test;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+SET @@path= '`"`';
+SELECT func();
+
+DROP DATABASE `"`;
+USE test;
+SET @@path= DEFAULT;
+
+--echo #
+--echo # Modify session path within a stored routine
+--echo # This is not allowed since we invalidate the sp caches when the session
+--echo # path is changed
+--echo #
+DELIMITER $$;
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+  SET @@path= 'sys';
+  RETURN '';
+END;
+$$
+DELIMITER ;$$
+--error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER
+SELECT func();
+
+DROP FUNCTION func;
+
+--echo #
+--echo # Modify global path within a stored routine
+--echo #
+DELIMITER $$;
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+  SET @@global.path= 'sys';
+  RETURN '';
+END;
+$$
+DELIMITER ;$$
+SELECT func();
+
+SET @@global.path= DEFAULT;
+
+DROP FUNCTION func;
 
 --echo #
 --echo # End of 11.8 tests

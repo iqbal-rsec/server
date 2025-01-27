@@ -1,5 +1,19 @@
 --source include/load_sysvars.inc
 
+SET NAMES utf8;
+
+#############################################################
+#                 Show initial value                        #
+#############################################################
+SELECT @@session.path;
+SELECT @@global.path;
+
+#############################################################
+#                 Set paths to non-empty                    #
+#############################################################
+SET @@global.path= '.,sys';
+SET @@session.path= DEFAULT;
+
 #############################################################
 #                 Save initial value                        #
 #############################################################
@@ -49,6 +63,7 @@ SELECT @@global.path;
 SET @@global.path = 'aaa';
 SET @@global.path = DEFAULT;
 SELECT @@global.path;
+SET @@global.path= '.,sys';
 SET @@session.path = 'abc';
 SET @@session.path = DEFAULT;
 SELECT @@session.path;
@@ -62,176 +77,174 @@ SELECT @@path;
 ###########################################################################
 #                Change the value of path to a valid value                #
 ###########################################################################
-SET PATH '.';
+SET PATH= '.';
 SELECT @@path;
-SET PATH '  a   ';
+SET PATH= '  a   ';
 SELECT @@path;
-SET PATH '`c`';
+SET PATH= '`c`';
 SELECT @@path;
 SET sql_mode=ORACLE;
-SET PATH '"d"';
+SET PATH= '"d"';
 SELECT @@path;
 SET sql_mode=DEFAULT;
-SET PATH ',e';
+SET PATH= ',e';
 SELECT @@path;
-SET PATH ',,f';
+SET PATH= ',,f';
 SELECT @@path;
-SET PATH ',,,g';
+SET PATH= ',,,g';
 SELECT @@path;
-SET PATH 'h,';
+SET PATH= 'h,';
 SELECT @@path;
-SET PATH 'i,,';
+SET PATH= 'i,,';
 SELECT @@path;
-SET PATH 'j,,,';
+SET PATH= 'j,,,';
 SELECT @@path;
-SET PATH 'a,b';
+SET PATH= 'a,b';
 SELECT @@path;
-SET PATH 'b,cd';
+SET PATH= 'b,cd';
 SELECT @@path;
-SET PATH 'bc,d';
+SET PATH= 'bc,d';
 SELECT @@path;
-SET PATH 'b,,e';
+SET PATH= 'b,,e';
 SELECT @@path;
-SET PATH 'bc,,e';
+SET PATH= 'bc,,e';
 SELECT @@path;
-SET PATH 'b,,ef';
+SET PATH= 'b,,ef';
 SELECT @@path;
-SET PATH 'aaa';
+SET PATH= 'aaa';
 SELECT @@path;
-SET PATH '`abc`';
+SET PATH= '`abc`';
 SELECT @@path;
 SET sql_mode=ORACLE;
-SET PATH '"bbb"';
+SET PATH= '"bbb"';
 SELECT @@path;
 SET sql_mode=DEFAULT;
-SET PATH 'ccc,';
+SET PATH= 'ccc,';
 SELECT @@path;
-SET PATH 'ddd,,';
+SET PATH= 'ddd,,';
 SELECT @@path;
-SET PATH 'eee,,,';
+SET PATH= 'eee,,,';
 SELECT @@path;
-SET PATH ',ccc';
+SET PATH= ',ccc';
 SELECT @@path;
-SET PATH ',,ddd';
+SET PATH= ',,ddd';
 SELECT @@path;
-SET PATH ',,,eee';
+SET PATH= ',,,eee';
 SELECT @@path;
-SET PATH ',aaa,';
+SET PATH= ',aaa,';
 SELECT @@path;
-SET PATH ',bbb,,';
+SET PATH= ',bbb,,';
 SELECT @@path;
-SET PATH ',,ccc,';
+SET PATH= ',,ccc,';
 SELECT @@path;
-SET PATH 'z,aaa';
+SET PATH= 'z,aaa';
 SELECT @@path;
-SET PATH 'aaa,z';
+SET PATH= 'aaa,z';
 SELECT @@path;
-SET PATH '`z`,aaa';
+SET PATH= '`z`,aaa';
 SELECT @@path;
-SET PATH 'aaa,`z`';
+SET PATH= 'aaa,`z`';
 SELECT @@path;
-SET PATH '  hello   ';
+SET PATH= '  hello   ';
 SELECT @@path;
-SET PATH 'aaa,bbb';
+SET PATH= 'aaa,bbb';
 SELECT @@path;
-SET PATH '   bbb,ccc  ';
+SET PATH= '   bbb,ccc  ';
 SELECT @@path;
-SET PATH '`ccc`,ddd';
+SET PATH= '`ccc`,ddd';
 SELECT @@path;
-SET PATH 'ddd,`eee`';
+SET PATH= 'ddd,`eee`';
 SELECT @@path;
-SET PATH '`eee`,`fff`';
+SET PATH= '`eee`,`fff`';
 SELECT @@path;
-SET PATH '    `fff`,`ggg`    ';
+SET PATH= '    `fff`,`ggg`    ';
 SELECT @@path;
 SET sql_mode=ORACLE;
-SET PATH '"bbb"';
+SET PATH= '"bbb"';
 SELECT @@path;
-SET PATH '"ggg",hhh';
+SET PATH= '"ggg",hhh';
 SELECT @@path;
-SET PATH 'hhh,`iii`,jjj,"kkk",lll';
+SET PATH= 'hhh,`iii`,jjj,"kkk",lll';
 SELECT @@path;
-SET PATH 'test,sys,ccc,ddd,eee,fff,ggg,hhh';
+SET PATH= 'test,sys,ccc,ddd,eee,fff,ggg,hhh';
 SELECT @@path;
-SET PATH ',,,test,,,sys,,,';
+SET PATH= ',,,test,,,sys,,,';
 SELECT @@path;
-SET PATH '  ,,,aaa,,,bbb,,,  ';
+SET PATH= '  ,,,aaa,,,bbb,,,  ';
 SELECT @@path;
-SET PATH 'hello,world,deadpool,wolverine,aaa,ccc';
+SET PATH= 'hello,world,deadpool,wolverine,aaa,ccc';
 SELECT @@path;
-SET PATH '`a,b`,c';
+SET PATH= '`a,b`,c';
 SELECT @@path;
-SELECT CURRENT_PATH;
-SELECT CURRENT_PATH();
-SET PATH 'ß';
+SET PATH= 'ß';
 SELECT @@path;
-SET PATH '`Œ`';
+SET PATH= '`Œ`';
 SELECT @@path;
-SET PATH '"Ɣ"';
+SET PATH= '"Ɣ"';
 SELECT @@path;
-SET PATH ',ß';
+SET PATH= ',ß';
 SELECT @@path;
-SET PATH ',,Œ';
+SET PATH= ',,Œ';
 SELECT @@path;
-SET PATH ',,,Ɣ';
+SET PATH= ',,,Ɣ';
 SELECT @@path;
-SET PATH 'ß,';
+SET PATH= 'ß,';
 SELECT @@path;
-SET PATH 'Œ,,';
+SET PATH= 'Œ,,';
 SELECT @@path;
-SET PATH 'Ɣ,,,';
+SET PATH= 'Ɣ,,,';
 SELECT @@path;
-SET PATH ',ß,';
+SET PATH= ',ß,';
 SELECT @@path;
-SET PATH 'a,ß';
+SET PATH= 'a,ß';
 SELECT @@path;
-SET PATH 'ß,c';
+SET PATH= 'ß,c';
 SELECT @@path;
-SET PATH 'ã,ß';
+SET PATH= 'ã,ß';
 SELECT @@path;
-SET PATH ',Œ,Ɣ,';
+SET PATH= ',Œ,Ɣ,';
 SELECT @@path;
-SET PATH ',ã,ß';
+SET PATH= ',ã,ß';
 SELECT @@path;
-SET PATH 'Œ,Ɣ,';
+SET PATH= 'Œ,Ɣ,';
 SELECT @@path;
-SET PATH 'aß';
+SET PATH= 'aß';
 SELECT @@path;
-SET PATH 'ßc';
+SET PATH= 'ßc';
 SELECT @@path;
-SET PATH 'ßĉ';
+SET PATH= 'ßĉ';
 SELECT @@path;
-SET PATH 'abc';
+SET PATH= 'abc';
 SELECT @@path;
-SET PATH 'ãbc';
+SET PATH= 'ãbc';
 SELECT @@path;
-SET PATH 'ãßc';
+SET PATH= 'ãßc';
 SELECT @@path;
-SET PATH 'ãßĉ';
+SET PATH= 'ãßĉ';
 SELECT @@path;
-SET PATH 'aßc';
+SET PATH= 'aßc';
 SELECT @@path;
-SET PATH 'aßĉ';
+SET PATH= 'aßĉ';
 SELECT @@path;
-SET PATH 'abĉ';
+SET PATH= 'abĉ';
 SELECT @@path;
-SET PATH 'ãbĉ';
+SET PATH= 'ãbĉ';
 SELECT @@path;
-SET PATH 'ãßĉ,';
+SET PATH= 'ãßĉ,';
 SELECT @@path;
-SET PATH 'a,ãßĉ';
+SET PATH= 'a,ãßĉ';
 SELECT @@path;
-SET PATH 'ãßĉ,d';
+SET PATH= 'ãßĉ,d';
 SELECT @@path;
-SET PATH ',ãßĉ,';
+SET PATH= ',ãßĉ,';
 SELECT @@path;
-SET PATH 'a,ãßĉ,d';
+SET PATH= 'a,ãßĉ,d';
 SELECT @@path;
-SET PATH 'a,ãßĉ,Œ';
+SET PATH= 'a,ãßĉ,Œ';
 SELECT @@path;
-SET PATH 'Ɣ,ãßĉ,d';
+SET PATH= 'Ɣ,ãßĉ,d';
 SELECT @@path;
-SET PATH 'Ɣ,ãßĉ,Œ';
+SET PATH= 'Ɣ,ãßĉ,Œ';
 SELECT @@path;
 
 --echo '#'
@@ -245,76 +258,77 @@ SET @@session.path = @start_session_value;
 SELECT @@session.path;
 SET @@global.path = @start_global_value;
 SELECT @@global.path;
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH ' ';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '    ';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH ',';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '`';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '`a';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"a';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'a`';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'a"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '``';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '""';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"d"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '`aaa';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'aaa`';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"aaa';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'aaa"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '`aaa"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"aaa`';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"ggg,hhh';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'ggg",hhh';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"ggg",hhh';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'hhh,`iii`,jjj,"kkk",lll';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'hello,world,deadpool,wolverine,aaa,deadpool,ccc';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '`,Ɣ';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '",Ɣ';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'Ɣ,`';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'Ɣ,"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '`Œ';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"c';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'Œ`';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH 'Œ"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '`Œ"';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"Œ`';
---Error ER_INVALID_SCHEMA_NAME_LIST_SPEC
-SET PATH '"Ɣ"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '`';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '`a';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"a';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'a`';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'a"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"d"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '`aaa';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'aaa`';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"aaa';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'aaa"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '`aaa"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"aaa`';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"ggg,hhh';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'ggg",hhh';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"ggg",hhh';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'hhh,`iii`,jjj,"kkk",lll';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'hello,world,deadpool,wolverine,aaa,deadpool,ccc';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '`,Ɣ';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '",Ɣ';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'Ɣ,`';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'Ɣ,"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '`Œ';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"c';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'Œ`';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'Œ"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '`Œ"';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"Œ`';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET PATH= '"Ɣ"';
 SELECT @@path;
 
+--echo #
+--echo #--- Set path to empty string ---#
+--echo #
+SET PATH= ' ';
+SET PATH= '    ';
+SET PATH= ',';
+SET PATH= '``';
+
+SET sql_mode=ANSI_QUOTES;
+SET PATH= '""';
+SET sql_mode=DEFAULT;
 
 --echo '#'
 --echo '#--- Test preparable statement ---#'
@@ -324,8 +338,55 @@ SELECT @@path;
 ###########################################################################
 PREPARE stmt FROM 'SELECT \'I know what you did last summer\'';
 
-SET PATH 'hello,world,mcdonald';
+SET PATH= 'hello,world,mcdonald';
 SELECT @@path;
 
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+SET GLOBAL PATH=DEFAULT;
+SET @@path=DEFAULT;
+
+--echo #
+--echo # Check privilige for setting global path
+--echo #
+CREATE USER priv_test;
+connect (conn1,localhost,priv_test,,);
+connection conn1;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET @@global.path= 'sys';
+SET @@path= 'sys';
+
+connection default;
+disconnect conn1;
+
+GRANT SUPER ON *.* TO priv_test;
+connect (conn1,localhost,priv_test,,);
+connection conn1;
+
+SET @@global.path= 'sys';
+
+connection default;
+
+DROP USER priv_test;
+SET @@global.path= DEFAULT;
+
+--echo #
+--echo # path max limit (16 schemas)
+--echo #
+SET PATH= 'a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p';
+SELECT @@path;
+--error ER_WRONG_VALUE_FOR_VAR
+SET PATH= 'a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q';
+SELECT @@path;
+
+--echo #
+--echo # CURRENT_PATH
+--echo #
+SET PATH= 'a,b';
+SELECT CURRENT_PATH();
+SELECT CURRENT_PATH;
+
+SET PATH= DEFAULT;
+SELECT CURRENT_PATH;

@@ -923,7 +923,7 @@ typedef struct system_variables
   my_bool binlog_alter_two_phase;
 
   Charset_collation_map_st character_set_collations;
-  char *path;
+  Sql_path path;
 } SV;
 
 /**
@@ -5616,7 +5616,6 @@ private:
 
 public:
   Session_tracker session_tracker;
-  Sql_path sql_path;
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.

@@ -2844,23 +2844,26 @@ Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
   if (unlikely(! thd->db.str && ! thd->lex->sphead))
   {
     /*
-      The proper error message should be in the lines of:
-        Can't resolve <name>() to a function call,
-        because this function:
-        - is not a native function,
-        - is not a user defined function,
-        - can not match a qualified (read: stored) function
-          since no database is selected.
-      Reusing ER_SP_DOES_NOT_EXIST have a message consistent with
-      the case when a default database exist, see Create_sp_func::create().
+      Attempt to resolve the db name from the path pariable
     */
-
-    if (thd->sql_path.find_db_unqualified(thd, *name, &sp_handler_function,
-                                          &db, NULL))
+    if (thd->variables.path.find_db_unqualified(thd, *name,
+                                                &sp_handler_function,
+                                                &db, NULL))
       return NULL;
 
     if (!db.str)
     {
+      /*
+        The proper error message should be in the lines of:
+          Can't resolve <name>() to a function call,
+          because this function:
+          - is not a native function,
+          - is not a user defined function,
+          - can not match a qualified (read: stored) function
+            since no database is selected.
+        Reusing ER_SP_DOES_NOT_EXIST have a message consistent with
+        the case when a default database exist, see Create_sp_func::create().
+      */
       my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
                "FUNCTION", name->str);
       return NULL;
@@ -2870,19 +2873,9 @@ Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
   if (!db.str)
   {
     db= thd->lex->copy_db_normalized(false);
-    if (!db.str)
-    {
-      if (thd->sql_path.find_db_unqualified(thd, *name, &sp_handler_function,
-                                            &db, NULL))
-        return NULL;
 
-      if (!db.str)
-      {
-        my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                "FUNCTION", name->str);
-        return NULL;
-      }
-    }
+    if (!db.str)
+      return NULL; /*No db or EOM, error was already sent */
   }
 
   return create_with_db(thd, db, Lex_ident_routine(*name), false, item_list);

@@ -10744,6 +10744,14 @@ function_call_conflict:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | PASSWORD_SYM '(' expr ')'
+          {
+            Item* i1;
+            i1= new (thd->mem_root) Item_func_password(thd, $3);
+            if (unlikely(i1 == NULL))
+              MYSQL_YYABORT;
+            $$= i1;
+          }
         | REPEAT_SYM '(' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_repeat(thd, $3, $5);
@@ -15848,7 +15856,6 @@ IDENT_sys:
 ident_cli_func:
           IDENT
         | IDENT_QUOTED
-        | keyword_set_special_case       { $$= $1; }
         | keyword_func_sp_var_and_label  { $$= $1; }
         | keyword_func_sp_var_not_label  { $$= $1; }
         ;
@@ -16057,6 +16064,7 @@ keyword_set_usual_case:
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
         | OFFSET_SYM
+        | PATH_SYM
         ;
 
 non_reserved_keyword_udt:
@@ -17286,20 +17294,6 @@ option_value_no_option_type:
           {
             if (unlikely(Lex->sp_create_set_password_instr(thd, $4, $6,
                                                            yychar == YYEMPTY)))
-              MYSQL_YYABORT;
-          }
-        | PATH_SYM
-          {
-            if (sp_create_assignment_lex(thd, $1.pos()))
-              MYSQL_YYABORT;
-          }
-          set_expr_or_default
-          {
-            Lex_ident_sys tmp(thd, &$1);
-
-            if (unlikely(!tmp.str) ||
-                unlikely(Lex->set_variable(&tmp, $3.expr, $3.expr_str)) ||
-                unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
         ;

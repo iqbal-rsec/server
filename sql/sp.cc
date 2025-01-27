@@ -2830,17 +2830,17 @@ Sp_handler::sp_resolve_package_routine_sql_path(THD *thd,
   if (!thd->db.length)
   {
     if (name->m_explicit_name)
-      ret= thd->sql_path.find_db_qualified(thd, name, pkg_routine_handler, pkgname);
+      ret= thd->variables.path.find_db_qualified(thd, name,
+                                                 pkg_routine_handler, pkgname);
     else
     {
-      if (thd->lex->sphead && thd->lex->sphead->m_name.str)
+      if ((*pkg_routine_handler)->sp_find_routine_quick(thd, name))
       {
-        if ((*pkg_routine_handler)->sp_find_routine_quick(thd, name))
-        {
-          ret= thd->sql_path.find_db_unqualified(thd, name->m_name, *pkg_routine_handler, NULL, &qname);
-          if (!ret && qname)
-            *name= *qname;
-        }
+        ret= thd->variables.path.find_db_unqualified(thd, name->m_name,
+                                                      *pkg_routine_handler,
+                                                      NULL, &qname);
+        if (!ret && qname)
+          *name= *qname;
       }
     }
 
@@ -2854,8 +2854,11 @@ Sp_handler::sp_resolve_package_routine_sql_path(THD *thd,
 
     if (!ret && !pkgname->m_name.length)
     {
-      if ((*pkg_routine_handler)->sp_find_qualified_routine(thd, name->m_db, name))
-        ret= thd->sql_path.find_db_qualified(thd, name, pkg_routine_handler, pkgname);
+      if ((*pkg_routine_handler)->sp_find_qualified_routine(thd, name->m_db,
+                                                            name))
+        ret= thd->variables.path.find_db_qualified(thd, name,
+                                                   pkg_routine_handler,
+                                                   pkgname);
     }
   }
   else
@@ -2867,7 +2870,9 @@ Sp_handler::sp_resolve_package_routine_sql_path(THD *thd,
     {
       if ((*pkg_routine_handler)->sp_find_routine_quick(thd, name))
       {
-        ret= thd->sql_path.find_db_unqualified(thd, name->m_name, *pkg_routine_handler, NULL, &qname);
+        ret= thd->variables.path.find_db_unqualified(thd, name->m_name,
+                                                     *pkg_routine_handler,
+                                                     NULL, &qname);
         if (!ret && qname)
           *name= *qname;
       }
