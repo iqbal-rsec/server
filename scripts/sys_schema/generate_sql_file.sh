@@ -135,7 +135,7 @@ then
   fi
   cd $GENDIR/tmpgen
   rm -rf *
-  cp -r $SYSDIR/after_setup.sql $SYSDIR/tables $SYSDIR/triggers $SYSDIR/functions $SYSDIR/views $SYSDIR/procedures .
+  cp -r $SYSDIR/after_setup.sql $SYSDIR/tables $SYSDIR/triggers $SYSDIR/functions $SYSDIR/views $SYSDIR/procedures $SYSDIR/packages .
 
   # Switch user if requested
   # Remove individual copyrights
@@ -190,9 +190,9 @@ then
   cat "$SYSDIR/sys_$MYSQLVERSION.sql" | tr -d '\r' | grep 'SOURCE' | grep -v before_setup | grep -v after_setup | $SED_R 's .{8}  ' | sed 's/^/./' >  "./sys_$MYSQLVERSION.sql"
   while read file; do
       # First try and get a DROP command
-      grep -E '(^DROP PROCEDURE|^DROP FUNCTION|^DROP TRIGGER)' $file >> $OUTPUTFILE
+      grep -E '(^DROP PROCEDURE|^DROP FUNCTION|^DROP TRIGGER|^DROP PACKAGE)' $file >> $OUTPUTFILE
       # And remove any that may exist (but keep DROP TEMPORARY TABLE)
-      sed -i -e "/^DROP PROCEDURE/d;/^DROP FUNCTION/d;/^DROP TRIGGER/d" $file
+      sed -i -e "/^DROP PROCEDURE/d;/^DROP FUNCTION/d;/^DROP TRIGGER/d;/^DROP PACKAGE/d" $file
       echo "" >> $OUTPUTFILE
       # Then collapse the rest of the file
       cat $file | tr '\n' ' ' >> $OUTPUTFILE

@@ -487,6 +487,8 @@ publish/
 **/packages/*
 # except build/, which is used as an MSBuild target.
 !**/packages/build/
+# except the packages in scripts/sys_schema
+!scripts/sys_schema/packages/*
 # If using the old MSBuild-Integrated Package Restore, uncomment this:
 #!**/packages/repositories.config
 

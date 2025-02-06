@@ -29,7 +29,7 @@ DELIMITER ;$$
 --vertical_results
 SELECT routine_name, routine_type, routine_definition
 FROM information_schema.routines
-WHERE routine_type LIKE 'PACKAGE%'
+WHERE routine_type LIKE 'PACKAGE%' AND routine_schema <> 'sys'
 ORDER BY routine_type;
 --horizontal_results
 
@@ -58,7 +58,7 @@ DELIMITER ;$$
 --vertical_results
 SELECT routine_name, routine_type, routine_definition
 FROM information_schema.routines
-WHERE routine_type LIKE 'PACKAGE%'
+WHERE routine_type LIKE 'PACKAGE%' AND routine_schema <> 'sys'
 ORDER BY routine_type;
 --horizontal_results
 

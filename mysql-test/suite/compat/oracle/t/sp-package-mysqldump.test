@@ -72,9 +72,9 @@ DROP PROCEDURE p1;
 
 --vertical_results
 --replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
-SHOW PACKAGE STATUS;
+SHOW PACKAGE STATUS WHERE Db <> 'sys';
 --replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
-SHOW PACKAGE BODY STATUS;
+SHOW PACKAGE BODY STATUS WHERE Db <> 'sys';
 --horizontal_results
 
 SHOW CREATE PACKAGE pkg1;
