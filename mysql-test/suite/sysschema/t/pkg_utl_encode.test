@@ -1,0 +1,42 @@
+-- source include/not_embedded.inc
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34333: System package SYS.UTL_ENCODE
+--echo #
+
+SET sql_mode= oracle;
+
+--echo #
+--echo # Test BASE64_DECODE with valid string
+--echo #
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg==' AS BINARY)) AS CHAR);
+
+--echo #
+--echo # Test BASE64_DECODE with valid string but without padding
+--echo #
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg' AS BINARY)) AS CHAR);
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg=' AS BINARY)) AS CHAR);
+
+--echo #
+--echo # Test BASE64_DECODE with NULL
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(NULL) AS CHAR);
+
+--echo #
+--echo # Test BASE64_DECODE with empty string
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE('') AS CHAR);
+
+--echo #
+--echo # Test BASE64_DECODE with the wrong argument type
+--echo #
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(7) AS CHAR);
+
+--echo #
+--echo # Test BASE64_DECODE with no argument
+--echo #
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE() AS CHAR);

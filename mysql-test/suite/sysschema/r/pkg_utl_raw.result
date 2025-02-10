@@ -1,0 +1,107 @@
+#
+# MDEV-34332: System package SYS.UTL_RAW
+#
+SET sql_mode= oracle;
+SET NAMES 'utf8';
+#
+# Test cast_to_varchar2 with valid input
+#
+SELECT sys.UTL_RAW.CAST_TO_VARCHAR2(x'e38182e3828be382b9e38388e383aae383b3e382b0');
+sys.UTL_RAW.CAST_TO_VARCHAR2(x'e38182e3828be382b9e38388e383aae383b3e382b0')
+あるストリング
+#
+# Test cast_to_varchar2 with valid input 2
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(REPEAT('a',200)));
+LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(REPEAT('a',200)))
+200
+#
+# Test cast_to_varchar2 with too long input
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(REPEAT('a',65536)));
+LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(REPEAT('a',65536)))
+4000
+Warnings:
+Warning	1265	Data truncated for column 'input' at row 1
+Warning	1265	Data truncated for column 'sys.UTL_RAW.CAST_TO_VARCHAR2(REPEAT('a',65536))' at row 0
+#
+# Test cast_to_varchar2 with empty binary string
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(x''));
+LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(x''))
+0
+#
+# Test cast_to_varchar2 with NULL
+#
+SELECT sys.UTL_RAW.CAST_TO_VARCHAR2(NULL);
+sys.UTL_RAW.CAST_TO_VARCHAR2(NULL)
+NULL
+#
+# Test cast_to_nvarchar2 with valid input
+#
+SELECT sys.UTL_RAW.CAST_TO_NVARCHAR2(x'e38182e3828be382b9e38388e383aae383b3e382b0');
+sys.UTL_RAW.CAST_TO_NVARCHAR2(x'e38182e3828be382b9e38388e383aae383b3e382b0')
+あるストリング
+#
+# Test cast_to_nvarchar2 with valid input 2
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(REPEAT('a',200)));
+LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(REPEAT('a',200)))
+200
+#
+# Test cast_to_nvarchar2 with too long input
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(REPEAT('a',65536)));
+LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(REPEAT('a',65536)))
+4000
+Warnings:
+Warning	1265	Data truncated for column 'input' at row 1
+Warning	1265	Data truncated for column 'sys.UTL_RAW.CAST_TO_NVARCHAR2(REPEAT('a',65536))' at row 0
+#
+# Test cast_to_nvarchar2 with empty binary string
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(x''));
+LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(x''))
+0
+#
+# Test cast_to_nvarchar2 with NULL
+#
+SELECT sys.UTL_RAW.CAST_TO_NVARCHAR2(NULL);
+sys.UTL_RAW.CAST_TO_NVARCHAR2(NULL)
+NULL
+#
+# Test cast_to_raw with valid input
+#
+SELECT sys.UTL_RAW.CAST_TO_RAW('あるストリング');
+sys.UTL_RAW.CAST_TO_RAW('あるストリング')
+あるストリング
+SELECT HEX(sys.UTL_RAW.CAST_TO_RAW('あるストリング'));
+HEX(sys.UTL_RAW.CAST_TO_RAW('あるストリング'))
+E38182E3828BE382B9E38388E383AAE383B3E382B0
+#
+# Test cast_to_raw with valid input 2
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_RAW(REPEAT('a',200)));
+LENGTH(sys.UTL_RAW.CAST_TO_RAW(REPEAT('a',200)))
+200
+#
+# Test cast_to_raw with too long input
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_RAW(REPEAT('a',65536)));
+LENGTH(sys.UTL_RAW.CAST_TO_RAW(REPEAT('a',65536)))
+4000
+Warnings:
+Warning	1265	Data truncated for column 'input' at row 1
+Warning	1265	Data truncated for column 'sys.UTL_RAW.CAST_TO_RAW(REPEAT('a',65536))' at row 0
+#
+# Test cast_to_raw with empty string
+#
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_RAW(''));
+LENGTH(sys.UTL_RAW.CAST_TO_RAW(''))
+0
+#
+# Test cast_to_raw with NULL
+#
+SELECT sys.UTL_RAW.CAST_TO_RAW(NULL);
+sys.UTL_RAW.CAST_TO_RAW(NULL)
+NULL

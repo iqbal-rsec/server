@@ -20,4 +20,5 @@ SELECT CAST(123 AS VARCHAR2(10)) FROM DUAL;
 CAST(123 AS VARCHAR2(10))
 123
 SELECT CAST(123 AS VARCHAR2) FROM DUAL;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') FROM DUAL' at line 1
+CAST(123 AS VARCHAR2)
+123

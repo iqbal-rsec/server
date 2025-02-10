@@ -11682,7 +11682,7 @@ cast_type:
                        thd->variables.collation_connection))
               MYSQL_YYABORT;
           }
-        | VARCHAR2_ORACLE_SYM field_length opt_binary
+        | VARCHAR2_ORACLE_SYM opt_field_length opt_binary
           {
             if ($$.set(&type_handler_long_blob,
                        $2, thd, thd->variables.character_set_collations, $3,

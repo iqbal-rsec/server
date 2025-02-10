@@ -127,6 +127,12 @@ sys_get_config	FUNCTION
 version_major	FUNCTION
 version_minor	FUNCTION
 version_patch	FUNCTION
+dbms_transaction	PACKAGE
+utl_encode	PACKAGE
+utl_raw	PACKAGE
+dbms_transaction	PACKAGE BODY
+utl_encode	PACKAGE BODY
+utl_raw	PACKAGE BODY
 create_synonym_db	PROCEDURE
 diagnostics	PROCEDURE
 execute_prepared_stmt	PROCEDURE

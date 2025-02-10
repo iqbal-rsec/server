@@ -1,0 +1,86 @@
+-- source include/not_embedded.inc
+-- source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-34332: System package SYS.UTL_RAW
+--echo #
+
+SET sql_mode= oracle;
+SET NAMES 'utf8';
+
+--echo #
+--echo # Test cast_to_varchar2 with valid input
+--echo #
+SELECT sys.UTL_RAW.CAST_TO_VARCHAR2(x'e38182e3828be382b9e38388e383aae383b3e382b0');
+
+--echo #
+--echo # Test cast_to_varchar2 with valid input 2
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(REPEAT('a',200)));
+
+--echo #
+--echo # Test cast_to_varchar2 with too long input
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(REPEAT('a',65536)));
+
+--echo #
+--echo # Test cast_to_varchar2 with empty binary string
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_VARCHAR2(x''));
+
+--echo #
+--echo # Test cast_to_varchar2 with NULL
+--echo #
+SELECT sys.UTL_RAW.CAST_TO_VARCHAR2(NULL);
+
+
+--echo #
+--echo # Test cast_to_nvarchar2 with valid input
+--echo #
+SELECT sys.UTL_RAW.CAST_TO_NVARCHAR2(x'e38182e3828be382b9e38388e383aae383b3e382b0');
+
+--echo #
+--echo # Test cast_to_nvarchar2 with valid input 2
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(REPEAT('a',200)));
+
+--echo #
+--echo # Test cast_to_nvarchar2 with too long input
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(REPEAT('a',65536)));
+
+--echo #
+--echo # Test cast_to_nvarchar2 with empty binary string
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_NVARCHAR2(x''));
+
+--echo #
+--echo # Test cast_to_nvarchar2 with NULL
+--echo #
+SELECT sys.UTL_RAW.CAST_TO_NVARCHAR2(NULL);
+
+--echo #
+--echo # Test cast_to_raw with valid input
+--echo #
+SELECT sys.UTL_RAW.CAST_TO_RAW('あるストリング');
+SELECT HEX(sys.UTL_RAW.CAST_TO_RAW('あるストリング'));
+
+--echo #
+--echo # Test cast_to_raw with valid input 2
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_RAW(REPEAT('a',200)));
+
+--echo #
+--echo # Test cast_to_raw with too long input
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_RAW(REPEAT('a',65536)));
+
+--echo #
+--echo # Test cast_to_raw with empty string
+--echo #
+SELECT LENGTH(sys.UTL_RAW.CAST_TO_RAW(''));
+
+--echo #
+--echo # Test cast_to_raw with NULL
+--echo #
+SELECT sys.UTL_RAW.CAST_TO_RAW(NULL);

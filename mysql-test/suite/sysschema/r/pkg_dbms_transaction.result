@@ -1,0 +1,83 @@
+#
+# MDEV-34329: System package SYS.DBMS_TRANSACTION
+#
+SET sql_mode= oracle;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+#
+# Test COMMIT
+#
+START TRANSACTION;
+UPDATE t1 SET a = 2;
+CALL sys.DBMS_TRANSACTION.COMMIT;
+SELECT @@session.in_transaction;
+@@session.in_transaction
+0
+SELECT a FROM t1;
+a
+2
+#
+# Test COMMIT with no transaction
+#
+CALL sys.DBMS_TRANSACTION.COMMIT;
+#
+# Commit should fail within a stored function
+#
+CREATE FUNCTION f1() RETURN INT AS
+BEGIN
+CALL sys.DBMS_TRANSACTION.COMMIT;
+RETURN 1;
+END;
+$$
+SELECT f1();
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+DROP FUNCTION f1;
+#
+# Commit should succeed within a stored procedure
+#
+CREATE PROCEDURE p1() AS
+BEGIN
+CALL sys.DBMS_TRANSACTION.COMMIT;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+#
+# Test ROLLBACK
+#
+START TRANSACTION;
+UPDATE t1 SET a = 3;
+CALL sys.DBMS_TRANSACTION.ROLLBACK;
+SELECT @@session.in_transaction;
+@@session.in_transaction
+0
+SELECT a FROM t1;
+a
+2
+#
+# Test ROLLBACK with no transaction
+#
+CALL sys.DBMS_TRANSACTION.ROLLBACK;
+#
+# Rollback should fail within a stored function
+#
+CREATE FUNCTION f1() RETURN INT AS
+BEGIN
+CALL sys.DBMS_TRANSACTION.ROLLBACK;
+RETURN 1;
+END;
+$$
+SELECT f1();
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+DROP FUNCTION f1;
+#
+# Rollback should succeed within a stored procedure
+#
+CREATE PROCEDURE p1() AS
+BEGIN
+CALL sys.DBMS_TRANSACTION.ROLLBACK;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

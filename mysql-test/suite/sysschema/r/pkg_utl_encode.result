@@ -1,0 +1,42 @@
+#
+# MDEV-34333: System package SYS.UTL_ENCODE
+#
+SET sql_mode= oracle;
+#
+# Test BASE64_DECODE with valid string
+#
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg==' AS BINARY)) AS CHAR);
+CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg==' AS BINARY)) AS CHAR)
+my name is oyen.
+#
+# Test BASE64_DECODE with valid string but without padding
+#
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg' AS BINARY)) AS CHAR);
+CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg' AS BINARY)) AS CHAR)
+my name is oyen.
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg=' AS BINARY)) AS CHAR);
+CAST(sys.UTL_ENCODE.BASE64_DECODE(CAST('bXkgbmFtZSBpcyBveWVuLg=' AS BINARY)) AS CHAR)
+my name is oyen.
+#
+# Test BASE64_DECODE with NULL
+#
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(NULL) AS CHAR);
+ERROR HY000: Invalid argument in function FROM_BASE64
+#
+# Test BASE64_DECODE with empty string
+#
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE('') AS CHAR);
+ERROR HY000: Invalid argument in function FROM_BASE64
+#
+# Test BASE64_DECODE with the wrong argument type
+#
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE(7) AS CHAR);
+CAST(sys.UTL_ENCODE.BASE64_DECODE(7) AS CHAR)
+NULL
+Warnings:
+Warning	1958	Bad base64 data as position 1
+#
+# Test BASE64_DECODE with no argument
+#
+SELECT CAST(sys.UTL_ENCODE.BASE64_DECODE() AS CHAR);
+ERROR 42000: Incorrect number of arguments for FUNCTION sys.UTL_ENCODE.base64_decode; expected 1, got 0
