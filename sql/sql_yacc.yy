@@ -963,6 +963,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MEDIUM_SYM
 %token  <kwd>  MEMORY_SYM
 %token  <kwd>  MERGE_SYM                     /* SQL-2003-R */
+%token  <kwd>  MESSAGES_SYM
 %token  <kwd>  MESSAGE_TEXT_SYM              /* SQL-2003-N */
 %token  <kwd>  MICROSECOND_SYM               /* MYSQL-FUNC */
 %token  <kwd>  MIGRATE_SYM
@@ -1026,6 +1027,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  PRESERVE_SYM
 %token  <kwd>  PREV_SYM
 %token  <kwd>  PREVIOUS_SYM
+%token  <kwd>  PRINT_SYM
 %token  <kwd>  PRIVILEGES                    /* SQL-2003-N */
 %token  <kwd>  PROCESS
 %token  <kwd>  PROCESSLIST_SYM
@@ -1861,6 +1863,7 @@ rule:
 %type <NONE> case_stmt_specification
 %type <NONE> loop_body while_body repeat_body
 %type <NONE> for_loop_statements
+%type <NONE> print_stmt
 
 %type <num> view_algorithm view_check_option
 %type <view_suid> view_suid opt_view_suid
@@ -2116,6 +2119,7 @@ verb_clause:
         | kill
         | load
         | lock
+        | print_stmt
         | optimize
         | parse_vcol_expr
         | partition_entry
@@ -3335,6 +3339,14 @@ call:
           {
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
+          }
+        ;
+
+print_stmt:
+          PRINT_SYM expr
+          {
+            Lex->sql_command= SQLCOM_PRINT;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_print($2);
           }
         ;
 
@@ -14417,6 +14429,8 @@ show_param:
           { Lex->sql_command = SQLCOM_SHOW_WARNS;}
         | ERRORS opt_global_limit_clause
           { Lex->sql_command = SQLCOM_SHOW_ERRORS;}
+        | MESSAGES_SYM
+          { Lex->sql_command= SQLCOM_SHOW_MESSAGES;}
         | PROFILES_SYM
           { Lex->sql_command = SQLCOM_SHOW_PROFILES; }
         | PROFILE_SYM opt_profile_defs opt_profile_args opt_global_limit_clause
@@ -16878,6 +16892,7 @@ reserved_keyword_udt_not_param_type:
 %ifdef ORACLE
         | MINUS_ORACLE_SYM
 %endif
+        | MESSAGES_SYM
         | MODIFIES_SYM
         | MOD_SYM
         | NATURAL

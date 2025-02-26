@@ -8213,6 +8213,32 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
   DBUG_RETURN(count);
 }
 
+int append_messages(DYNAMIC_STRING *ds, MYSQL* mysql)
+{
+  MYSQL_RES *warn_res;
+  DBUG_ENTER("append_messages");
+
+  // TODO should we store the message count in protocol?
+  // so that we can skip this query if we know there are no messages
+
+  /*
+    If one day we will support execution of multi-statements
+    through PS API we should not issue SHOW MESSAGES until
+    we have not read all results...
+  */
+  DBUG_ASSERT(!mysql_more_results(mysql));
+
+  if (mysql_real_query(mysql, "SHOW MESSAGES", 13))
+    die("Error running query \"SHOW MESSAGES\": %s", mysql_error(mysql));
+
+  if (!(warn_res= mysql_store_result(mysql)))
+    DBUG_RETURN(0);
+
+  append_result(ds, warn_res);
+  mysql_free_result(warn_res);
+  DBUG_RETURN(0);
+}
+
 
 /*
   Handle situation where query is sent but there is no active connection 
@@ -8364,6 +8390,9 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 
       if (display_session_track_info)
         append_session_track_info(ds, mysql);
+      
+      if (!mysql_more_results(mysql))
+        append_messages(ds, mysql);
 
       /*
         Add all warnings to the result. We can't do this if we are in

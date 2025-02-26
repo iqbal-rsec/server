@@ -74,6 +74,7 @@ void set_thd_stage_info(void *thd,
 #include "wsrep_on.h"
 #include <inttypes.h>
 #include <ilist.h>
+#include "debug_print.h"
 #ifdef WITH_WSREP
 /* wsrep-lib */
 #include "wsrep_client_service.h"
@@ -6116,6 +6117,9 @@ public:
   bool report_collected_unit_results();
   bool init_collecting_unit_results();
   void push_final_warnings();
+
+public:
+  Debug_print debug_print;
 };
 
 

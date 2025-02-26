@@ -1165,6 +1165,7 @@ static void print_table_data_xml(MYSQL_RES *result);
 static void print_tab_data(MYSQL_RES *result);
 static void print_table_data_vertically(MYSQL_RES *result);
 static void print_warnings(void);
+static void print_messages(void);
 static void print_last_query_cost(void);
 static void end_timer(ulonglong start_time, char *buff);
 static void nice_time(double sec,char *buff,bool part_second);
@@ -3626,10 +3627,20 @@ static int com_go(String *buffer, char *)
 	*pos++= 's';
     }
     strmov(pos, time_buff);
-    put_info(buff,INFO_RESULT);
-    if (mysql_info(&mysql))
-      put_info(mysql_info(&mysql),INFO_RESULT);
-    put_info("",INFO_RESULT);			// Empty row
+    if (mysql_affected_rows(&mysql) != ~(ulonglong) 1)
+    {
+      put_info(buff,INFO_RESULT);
+
+      if (mysql_info(&mysql))
+        put_info(mysql_info(&mysql),INFO_RESULT);
+      
+      put_info("",INFO_RESULT);			// Empty row
+    }
+    else
+    {
+      if (mysql_info(&mysql))
+        put_info(mysql_info(&mysql),INFO_RESULT);
+    }
 
     if (result && !mysql_eof(result))	/* Something wrong when using quick */
     {
@@ -3655,6 +3666,7 @@ end:
     print_warnings();
   if (show_query_cost)
     print_last_query_cost();
+  print_messages();
 
   if (!error && !status.batch && 
       (mysql.server_status & SERVER_STATUS_DB_DROPPED))
@@ -4259,6 +4271,38 @@ end:
   mysql_free_result(result);
 }
 
+
+static void print_messages()
+{
+  const char   *query;
+  MYSQL_RES    *result;
+  MYSQL_ROW    cur;
+  my_ulonglong num_rows;
+
+  /* Get the messages */
+  query= "show messages";
+  mysql_real_query_for_lazy(query, strlen(query));
+  mysql_store_result_for_lazy(&result);
+
+  /* Bail out when no messages */
+  if (!result || !(num_rows= mysql_num_rows(result)))
+    goto end;
+
+  cur= mysql_fetch_row(result);
+  if (!cur)
+    goto end;
+
+  /* Print the messages */
+  init_pager();
+  do
+  {
+    tee_fprintf(PAGER, "%s\n", cur[0]);
+  } while ((cur= mysql_fetch_row(result)));
+  end_pager();
+
+end:
+  mysql_free_result(result);
+}
 
 /* print_last_query_cost */
 

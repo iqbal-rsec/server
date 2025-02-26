@@ -1756,6 +1756,7 @@ void THD::free_connection()
   profiling.restart();                          // Reset profiling
 #endif
   debug_sync_reset_thread(this);
+  debug_print.stop();
 }
 
 /*
@@ -1873,6 +1874,7 @@ THD::~THD()
 #if defined(ENABLED_DEBUG_SYNC)
   debug_sync_end_thread(this);
 #endif
+  //debug_print.stop(this);
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 

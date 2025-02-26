@@ -77,7 +77,7 @@ protected:
   */
   bool store_string_aux(const char *from, size_t length,
                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
-
+public:
   virtual bool send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
                        const char *message);

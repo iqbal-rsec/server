@@ -112,6 +112,8 @@ enum enum_sql_command {
   SQLCOM_SHOW_PACKAGE_BODY_CODE,
   SQLCOM_BACKUP, SQLCOM_BACKUP_LOCK,
   SQLCOM_SHOW_CREATE_SERVER,
+  SQLCOM_PRINT,
+  SQLCOM_SHOW_MESSAGES,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc
@@ -449,6 +451,19 @@ public:
   enum_sql_command sql_command_code() const override
   {
     return SQLCOM_CALL;
+  }
+};
+
+
+class Sql_cmd_print : public Sql_cmd
+{
+  Item *m_message;
+public:
+  Sql_cmd_print(Item *message) : m_message(message) {}
+  bool execute(THD *thd) override;
+  enum_sql_command sql_command_code() const override
+  {
+    return SQLCOM_PRINT;
   }
 };
 

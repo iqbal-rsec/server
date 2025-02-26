@@ -1,0 +1,20 @@
+-- source include/not_embedded.inc
+-- source include/have_perfschema.inc
+
+SET sql_mode=oracle;
+SET names utf8;
+
+PRINT 'something';
+
+DELIMITER /;
+BEGIN PRINT 'aaaf'; PRINT 'xcvxcvxcvx'; SHOW MESSAGES; PRINT '点眼薬'; END;/
+DELIMITER ;/
+
+--echo #
+--echo # MDEV-19149: System package SYS.DBMS_OUTPUT
+--echo #
+CALL sys.DBMS_OUTPUT.PUT_LINE('something');
+
+DELIMITER /;
+BEGIN CALL sys.DBMS_OUTPUT.PUT_LINE('something'); END;/
+DELIMITER ;/

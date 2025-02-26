@@ -1,0 +1,16 @@
+SET sql_mode=oracle;
+SET names utf8;
+PRINT 'something';
+something
+BEGIN PRINT 'aaaf'; PRINT 'xcvxcvxcvx'; SHOW MESSAGES; PRINT '点眼薬'; END;/
+Message
+aaaf
+xcvxcvxcvx
+点眼薬
+#
+# MDEV-19149: System package SYS.DBMS_OUTPUT
+#
+CALL sys.DBMS_OUTPUT.PUT_LINE('something');
+something
+BEGIN CALL sys.DBMS_OUTPUT.PUT_LINE('something'); END;/
+something

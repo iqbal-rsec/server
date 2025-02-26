@@ -191,6 +191,8 @@ SET (SQL_SOURCE
                socketpair.c socketpair.h
                opt_vcol_substitution.h
                opt_vcol_substitution.cc
+               debug_print.h
+               debug_print.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

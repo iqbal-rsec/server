@@ -657,6 +657,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_PRIVILEGES]=  CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_WARNS]=       CF_STATUS_COMMAND | CF_DIAGNOSTIC_STMT;
   sql_command_flags[SQLCOM_SHOW_ERRORS]=      CF_STATUS_COMMAND | CF_DIAGNOSTIC_STMT;
+  sql_command_flags[SQLCOM_SHOW_MESSAGES]=    CF_STATUS_COMMAND | CF_DIAGNOSTIC_STMT;
   sql_command_flags[SQLCOM_SHOW_ENGINE_STATUS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_MUTEX]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_LOGS]= CF_STATUS_COMMAND;
@@ -685,6 +686,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_TABLES]=       (CF_STATUS_COMMAND | CF_SHOW_TABLE_COMMAND | CF_REEXECUTION_FRAGILE);
   sql_command_flags[SQLCOM_SHOW_TABLE_STATUS]= (CF_STATUS_COMMAND | CF_SHOW_TABLE_COMMAND | CF_REEXECUTION_FRAGILE);
 
+  sql_command_flags[SQLCOM_PRINT]=          CF_STATUS_COMMAND;
 
   sql_command_flags[SQLCOM_CREATE_USER]=       CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_RENAME_USER]=       CF_CHANGES_DATA;
@@ -3319,6 +3321,30 @@ bool Sql_cmd_call::execute(THD *thd)
 }
 
 
+bool Sql_cmd_print::execute(THD *thd)
+{
+  if (unlikely(m_message->fix_fields_if_needed(thd, &m_message)))
+    return true;
+  
+  String *str= m_message->str_result(new (thd->mem_root) String);
+  if (unlikely(!str))
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), "MESSAGE");
+    return true;
+  }
+
+  /* TODO enable this using a system variable */
+  thd->debug_print.start(thd);
+
+  if (unlikely(thd->debug_print.push(thd, *m_message)))
+    return true;
+
+  my_ok(thd);
+  
+  return false;
+}
+
+
 /**
   Check whether the SQL statement being processed is prepended by
   SET STATEMENT clause and handle variables assignment if it is.
@@ -5880,6 +5906,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:
+  case SQLCOM_PRINT:
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     DBUG_ASSERT(lex->m_sql_cmd != NULL);
@@ -5887,6 +5914,44 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     DBUG_PRINT("result", ("res: %d  killed: %d  is_error(): %d",
                           res, thd->killed, thd->is_error()));
     break;
+  case SQLCOM_SHOW_MESSAGES:
+  {
+    /*TODO: move to a function*/
+    List<Item> field_list;
+    field_list.push_back(new (thd->mem_root)
+                       Item_empty_string(thd, "Message", MYSQL_ERRMSG_SIZE),
+                       thd->mem_root);
+    if (thd->protocol->send_result_set_metadata(&field_list,
+                                         Protocol::SEND_NUM_ROWS |
+                                         Protocol::SEND_EOF))
+      res= true;
+
+    List<String> lines;
+    String *line= NULL;
+    if (!thd->debug_print.pop(thd, &lines))
+    {
+      List_iterator_fast<String> it(lines);
+      while ((line= it++))
+      {
+        thd->protocol->prepare_for_resend();
+        if (thd->protocol->store_str(line->ptr(), line->length(), thd->charset(), thd->charset()))
+        {
+          res= true;
+          break;
+        }
+
+        if (thd->protocol->write())
+        {
+          res= true;
+          break;
+        }
+      }
+    }
+
+    my_eof(thd);
+    res= false;
+    break;
+  }
   default:
 
 #ifndef EMBEDDED_LIBRARY
