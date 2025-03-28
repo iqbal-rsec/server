@@ -179,19 +179,18 @@ public:
   int set_variable(THD *thd, uint var_idx, Item **value);
   int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
                              Item **value);
-  int set_variable_row_field_by_name(THD *thd, uint var_idx,
-                                     const LEX_CSTRING &field_name,
-                                     Item **value);
   int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
 
-  int set_variable_assoc_array_by_key(THD *thd, uint var_idx, Item* key,
-                                      Item **value);
-  int set_variable_assoc_array_field_by_key(THD *thd,
+  int set_variable_composite_field_by_key(THD *thd,
                                             const LEX_CSTRING &var_name,
                                             uint var_idx,
-                                            Item *key,
+                                            const LEX_CSTRING &elem_name,
                                             const LEX_CSTRING &field_name,
                                             Item **value);
+  int set_variable_composite_by_name(THD *thd, uint var_idx,
+                                     const LEX_CSTRING &name,
+                                     Item **value);
+  int set_variable_composite_by_name(THD *thd, Item_field *composite, const LEX_CSTRING &name, Item **value);
   int set_parameter(THD *thd, uint var_idx, Item **value)
   {
     DBUG_ASSERT(var_idx < argument_count());

@@ -1546,7 +1546,7 @@ $$
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	set marks@0 (43@1,99@2)
-1	set marks@0[1] 62
+1	set marks["1"] 62
 2	stmt 0 "SELECT marks(1)"
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1() AS
@@ -1573,6 +1573,6 @@ Pos	Instruction
 1	set nick@1 NULL
 2	set nick@1 first(person_by_nickname@0)
 3	set person_by_nickname@0[nick@1].first_name 'Michael'
-4	set person_by_nickname@0[nick@1] ('Michael','Widenius')
+4	set person_by_nickname["nick@1"] ('Michael','Widenius')
 DROP PROCEDURE p1;
 # End of 11.8 tests

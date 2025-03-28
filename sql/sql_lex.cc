@@ -41,6 +41,7 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
+#include "sql_type_assoc_array.h"
 
 void LEX::parse_error(uint err_number)
 {
@@ -6984,118 +6985,8 @@ bool LEX::sp_set_assoc_array_copy_key(LEX *sub_lex)
 }
 
 
-Item *LEX::sp_get_assoc_array_key(THD *thd, Item_splocal* array,
-                                  List<Item> *args, bool is_first)
-{
-  DBUG_ASSERT(array);
-  
-  if (args)
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), is_first ? "FIRST" : "LAST", 
-             ErrConvDQName(sphead).ptr(),
-             0, args->elements);
-    return NULL;
-  }
-
-  return is_first ?
-    (Item *)new (thd->mem_root) Item_func_assoc_array_first(thd, array) :
-    (Item *)new (thd->mem_root) Item_func_assoc_array_last(thd, array);
-}
-
-
-Item *LEX::sp_get_assoc_array_next_or_prior(THD *thd,
-                                            Item_splocal* array,
-                                            List<Item> *args, bool is_next)
-{
-  DBUG_ASSERT(array);
-  
-  if (!args || args->elements != 1)
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), is_next ? "NEXT" : "PRIOR", 
-             ErrConvDQName(sphead).ptr(),
-             1, args ? args->elements : 0);
-    return NULL;
-  }
-
-  Item_args args_item(thd, *args);
-  return is_next ? (Item *)
-                      new (thd->mem_root)
-                        Item_func_assoc_array_next(thd, array,
-                                                   args_item.arguments()[0]) :
-                   (Item *)
-                      new (thd->mem_root)
-                        Item_func_assoc_array_prior(thd, array,
-                                                   args_item.arguments()[0]);
-}
-
-
-Item *LEX::sp_get_assoc_array_count(THD *thd, Item_splocal* array,
-                                    List<Item> *args)
-{
-  DBUG_ASSERT(array);
-
-  if (args)
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "COUNT", 
-             ErrConvDQName(sphead).ptr(),
-             0, args->elements);
-    return NULL;
-  }
-
-  return new (thd->mem_root) Item_func_assoc_array_count(thd, array);
-}
-
-
-Item *LEX::sp_get_assoc_array_exists(THD *thd,
-                                     Item_splocal* array,
-                                     List<Item> *args)
-{
-  DBUG_ASSERT(array);
-
-  if (!args || args->elements != 1)
-  {
-    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "EXISTS", 
-             ErrConvDQName(sphead).ptr(),
-             1, args ? args->elements : 0);
-    return NULL;
-  }
-
-  Item_args args_item(thd, *args);
-  return new (thd->mem_root)
-            Item_func_assoc_array_exists(thd,
-                                         array,
-                                         args_item.arguments()[0]);
-}
-
-
-Item *LEX::sp_get_assoc_array_delete(THD *thd,
-                                     Item_splocal* array,
-                                     List<Item> *args)
-{
-  DBUG_ASSERT(array);
-
-  if (args)
-  {
-    if (args->elements != 1)
-    {
-      my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "DELETE", 
-             ErrConvDQName(sphead).ptr(),
-             1, args->elements);
-      return NULL;
-    }
-
-    Item_args args_item(thd, *args);
-    return new (thd->mem_root)
-      Item_func_assoc_array_delete(thd, array,
-                                   args_item.arguments()[0]);
-  }
-  else
-    return new (thd->mem_root) Item_func_assoc_array_delete(thd, array);
-}
-
-
 bool LEX::sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
-                                             Column_definition *key_def,
+                                             Spvar_definition *key_def,
                                              Spvar_definition *value_def,
                                              Item *def,
                                              const LEX_CSTRING &expr_str)
@@ -7122,9 +7013,13 @@ bool LEX::sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
 
   if (sphead->fill_spvar_definition(thd, value_def))
     return true;
-
-  Assoc_array_definition* aa_def =
-    new (thd->mem_root) Assoc_array_definition(key_def, value_def);
+  
+  Row_definition_list *aa_def= new (thd->mem_root) Row_definition_list();
+  if (unlikely(aa_def == nullptr))
+    return true;
+  
+  aa_def->push_back(key_def, thd->mem_root);
+  aa_def->push_back(value_def, thd->mem_root);
 
   for (uint i= 0 ; i < (uint) nvars ; i++)
   {
@@ -8994,59 +8889,6 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
 }
 
 
-Item *LEX::sp_get_assoc_array_method(THD *thd,
-                                const Lex_ident_cli_st *ca,
-                                const Lex_ident_cli_st *cb,
-                                List<Item> *args)
-{
-  DBUG_ASSERT(ca);
-  DBUG_ASSERT(cb);
-
-  Item_splocal *array= create_item_for_sp_var(ca, NULL);
-  if (unlikely(array == NULL))
-    return NULL;
-
-  return sp_get_assoc_array_method(thd, array, cb, args);
-}
-
-
-Item *LEX::sp_get_assoc_array_method(THD *thd,
-                                  Item_splocal* array,
-                                  const Lex_ident_cli_st *method_name,
-                                  List<Item> *args)
-{
-  DBUG_ASSERT(method_name);
-
-  Lex_ident_sys b(thd, method_name);
-  if (b.length == 5)
-  {
-    if (Lex_ident_column(b).streq("COUNT"_Lex_ident_column))
-      return sp_get_assoc_array_count(thd, array, args);
-    else if (Lex_ident_column(b).streq("FIRST"_Lex_ident_column))
-      return sp_get_assoc_array_key(thd, array, args, true); 
-    else if (Lex_ident_column(b).streq("PRIOR"_Lex_ident_column))
-      return sp_get_assoc_array_next_or_prior(thd, array, args, false);
-  }
-  else if (b.length == 4)
-  {
-    if (Lex_ident_column(b).streq("LAST"_Lex_ident_column))
-      return sp_get_assoc_array_key(thd, array, args, false); 
-    else if (Lex_ident_column(b).streq("NEXT"_Lex_ident_column))
-      return sp_get_assoc_array_next_or_prior(thd, array, args, true);
-  }
-  else if (b.length == 6)
-  {
-    if (Lex_ident_column(b).streq("EXISTS"_Lex_ident_column))
-      return sp_get_assoc_array_exists(thd, array, args);
-    else if (Lex_ident_column(b).streq("DELETE"_Lex_ident_column))
-      return sp_get_assoc_array_delete(thd, array, args);
-  }
-
-  my_error(ER_BAD_FIELD_ERROR, MYF(0), method_name->str);
-  return NULL;
-}
-
-
 Item *LEX::create_item_ident(THD *thd,
                              const Lex_ident_cli_st *ca,
                              const Lex_ident_cli_st *cb)
@@ -9068,7 +8910,7 @@ Item *LEX::create_item_ident(THD *thd,
        spv->field_def.is_cursor_rowtype_ref())
       return create_item_spvar_row_field(thd, rh, &a, &b, spv, start, end);
     else if ((thd->variables.sql_mode & MODE_ORACLE) && spv->field_def.is_assoc_array())
-        return sp_get_assoc_array_method(thd, ca, cb, NULL);
+        return type_handler_assoc_array.create_item_method(thd, ca, cb, NULL);
   }
 
   if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)

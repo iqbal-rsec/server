@@ -260,50 +260,6 @@ const Type_collection *Type_handler_row::type_collection() const
 }
 
 
-class Type_collection_assoc_array: public Type_collection
-{
-public:
-  bool init(Type_handler_data *data) override
-  {
-    return false;
-  }
-  const Type_handler *aggregate_for_result(const Type_handler *a,
-                                           const Type_handler *b)
-                                           const override
-  {
-    return NULL;
-  }
-  const Type_handler *aggregate_for_comparison(const Type_handler *a,
-                                               const Type_handler *b)
-                                               const override
-  {
-    DBUG_ASSERT(a == &type_handler_assoc_array);
-    DBUG_ASSERT(b == &type_handler_assoc_array);
-    return &type_handler_assoc_array;
-  }
-  const Type_handler *aggregate_for_min_max(const Type_handler *a,
-                                            const Type_handler *b)
-                                            const override
-  {
-    return NULL;
-  }
-  const Type_handler *aggregate_for_num_op(const Type_handler *a,
-                                           const Type_handler *b)
-                                           const override
-  {
-    return NULL;
-  }
-};
-
-
-static Type_collection_assoc_array type_collection_assoc_array;
-
-const Type_collection *Type_handler_assoc_array::type_collection() const
-{
-  return &type_collection_assoc_array;
-}
-
-
 bool Type_handler_data::init()
 {
   return type_collection_geometry.init(this);
@@ -735,7 +691,6 @@ Interval_DDhhmmssff::Interval_DDhhmmssff(THD *thd, Status *st,
 {
   switch (item->cmp_type()) {
   case ROW_RESULT:
-  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     time_type= MYSQL_TIMESTAMP_NONE;
     break;
@@ -825,7 +780,6 @@ uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
   case DECIMAL_RESULT:
     return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
   case ROW_RESULT:
-  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     return 0;
   case STRING_RESULT:
@@ -1817,12 +1771,6 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
 }
 
 
-const Type_handler *Type_handler_assoc_array::type_handler_for_comparison() const
-{
-  return &type_handler_assoc_array;
-}
-
-
 /***************************************************************************/
 
 const Type_handler *
@@ -1948,8 +1896,7 @@ aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
 {
   bool bit_and_non_bit_mixture_found= false;
   uint32 max_display_length;
-  if (!nitems || items[0]->result_type() == ROW_RESULT ||
-                 items[0]->result_type() == ASSOC_ARRAY_RESULT)
+  if (!nitems || items[0]->result_type() == ROW_RESULT)
   {
     DBUG_ASSERT(0);
     set_handler(&type_handler_null);
@@ -2025,8 +1972,9 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
     return &type_handler_slonglong;
   if (a == ROW_RESULT || b == ROW_RESULT)
     return &type_handler_row;
-  if (a == ASSOC_ARRAY_RESULT || b == ASSOC_ARRAY_RESULT)
-    return &type_handler_assoc_array;
+  // TODO
+  // if (a == ASSOC_ARRAY_RESULT || b == ASSOC_ARRAY_RESULT)
+  //   return &type_handler_assoc_array;
   if (a == TIME_RESULT || b == TIME_RESULT)
   {
     if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
@@ -2119,8 +2067,6 @@ Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
   Item_result b= hb->cmp_type();
   DBUG_ASSERT(a != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
   DBUG_ASSERT(b != ROW_RESULT); // Disallowed by check_cols() in fix_fields()
-  DBUG_ASSERT(a != ASSOC_ARRAY_RESULT);
-  DBUG_ASSERT(b != ASSOC_ARRAY_RESULT);
 
   if (a == STRING_RESULT && b == STRING_RESULT)
     return Type_collection_std::aggregate_for_result(ha, hb);
@@ -2372,7 +2318,6 @@ Type_handler::handler_by_log_event_data_type(THD *thd,
   case STRING_RESULT:
   case ROW_RESULT:
   case TIME_RESULT:
-  case ASSOC_ARRAY_RESULT:
     break;
   case REAL_RESULT:
     return &type_handler_double;
@@ -3158,19 +3103,6 @@ bool Type_handler_null::
   return false;
 }
 
-bool Type_handler_row::
-       Column_definition_prepare_stage1(THD *thd,
-                                        MEM_ROOT *mem_root,
-                                        Column_definition *def,
-                                        column_definition_type_t type,
-                                        const Column_derived_attributes
-                                              *derived_attr)
-                                        const
-{
-  def->charset= &my_charset_bin;
-  def->create_length_to_internal_length_null();
-  return false;
-}
 
 bool Type_handler_temporal_result::
        Column_definition_prepare_stage1(THD *thd,
@@ -4375,13 +4307,6 @@ Type_handler_bit::Bit_decimal_notation_int_digits_by_nbits(uint nbits)
 }
 
 /*************************************************************************/
-
-void Type_handler_row::Item_update_null_value(Item *item) const
-{
-  DBUG_ASSERT(0);
-  item->null_value= true;
-}
-
 
 void Type_handler_time_common::Item_update_null_value(Item *item) const
 {
@@ -5900,14 +5825,6 @@ bool Type_handler_string_result::
 }
 
 
-longlong Type_handler_row::
-           Item_func_between_val_int(Item_func_between *func) const
-{
-  DBUG_ASSERT(0);
-  func->null_value= true;
-  return 0;
-}
-
 longlong Type_handler_string_result::
            Item_func_between_val_int(Item_func_between *func) const
 {
@@ -6448,40 +6365,6 @@ String *Type_handler_row::
 }
 
 
-String *Type_handler_assoc_array::
-          print_item_value(THD *thd, Item *item, String *str) const
-{
-  CHARSET_INFO *cs= thd->variables.character_set_client;
-  StringBuffer<STRING_BUFFER_USUAL_SIZE> val(cs);
-  String key;
-  str->append(STRING_WITH_LEN("ASSOC_ARRAY("));
-
-  uint i= 0;
-  if (!item->get_key(&key, true))
-  {
-    do
-    {
-      if (i > 0)
-        str->append(',');
-      
-      Item *elem= item->element_by_key(thd, &key);
-      String *tmp= elem->type_handler()->print_item_value(thd, elem, &val);
-      if (tmp)
-        str->append(*tmp);
-      else
-        str->append(NULL_clex_str);
-      
-      i++;
-    } while (!item->get_next_key(&key, &key));
-  }
-  else
-    str->append(NULL_clex_str);
-
-  str->append(')');
-  return str;
-}
-
-
 /**
   Get a string representation of the Item value,
   using the character string format with its charset and collation, e.g.
@@ -6573,14 +6456,6 @@ String *Type_handler_timestamp_common::
 
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_round_fix_length_and_dec(Item_func_round *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
 
 bool Type_handler_int_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
@@ -6692,14 +6567,6 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
-
 bool Type_handler_int_result::
        Item_func_int_val_fix_length_and_dec(Item_func_int_val *item) const
 {
@@ -6804,14 +6671,6 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
-
 bool Type_handler_int_result::
        Item_func_abs_fix_length_and_dec(Item_func_abs *item) const
 {
@@ -6861,14 +6720,6 @@ bool Type_handler_string_result::
 
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
 
 bool Type_handler_int_result::
        Item_func_neg_fix_length_and_dec(Item_func_neg *item) const
@@ -7077,14 +6928,6 @@ bool Type_handler::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
-
 bool Type_handler_int_result::
        Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
 {
@@ -7125,14 +6968,6 @@ bool Type_handler_string_result::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
 
 bool Type_handler_int_result::
        Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
@@ -7175,14 +7010,6 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
-bool Type_handler_row::
-       Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
-
 bool Type_handler_int_result::
        Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
 {
@@ -7223,14 +7050,6 @@ bool Type_handler_string_result::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_div_fix_length_and_dec(Item_func_div *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
 
 bool Type_handler_int_result::
        Item_func_div_fix_length_and_dec(Item_func_div *item) const
@@ -7272,14 +7091,6 @@ bool Type_handler_string_result::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-       Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
-{
-  DBUG_ASSERT(0);
-  return true;
-}
-
 
 bool Type_handler_int_result::
        Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
@@ -7595,15 +7406,6 @@ bool Type_handler_null::
 }
 
 
-bool Type_handler_row::
-       Item_save_in_value(THD *thd, Item *item, st_value *value) const
-{
-  DBUG_ASSERT(0);
-  value->m_type= DYN_COL_NULL;
-  return true;
-}
-
-
 bool Type_handler_int_result::
        Item_save_in_value(THD *thd, Item *item, st_value *value) const
 {
@@ -7663,18 +7465,6 @@ bool Type_handler_time_common::
 }
 
 /***************************************************************************/
-
-bool Type_handler_row::
-  Item_param_set_from_value(THD *thd,
-                            Item_param *param,
-                            const Type_all_attributes *attr,
-                            const st_value *val) const
-{
-  DBUG_ASSERT(0);
-  param->set_null();
-  return true;
-}
-
 
 bool Type_handler_real_result::
   Item_param_set_from_value(THD *thd,
@@ -8423,19 +8213,6 @@ Field *Type_handler_row::
 }
 
 
-Field *Type_handler_assoc_array::
-  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
-                            const LEX_CSTRING *name,
-                            const Record_addr &rec, const Bit_addr &bit,
-                            const Column_definition_attributes *attr,
-                            uint32 flags) const
-{
-  DBUG_ASSERT(attr->length == 0);
-  DBUG_ASSERT(f_maybe_null(attr->pack_flag));
-  return new (mem_root) Field_assoc_array(rec.ptr(), name);
-}
-
-
 Field *Type_handler_olddecimal::
   make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
                             const LEX_CSTRING *name,
@@ -9166,14 +8943,6 @@ Type_handler_hex_hybrid::cast_to_int_type_handler() const
 
 /***************************************************************************/
 
-bool Type_handler_row::Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
-                                     Item *a, Item *b) const
-{
-  DBUG_ASSERT(0);
-  return false;
-}
-
-
 bool Type_handler_int_result::Item_eq_value(THD *thd,
                                             const Type_cmp_attributes *attr,
                                             Item *a, Item *b) const
@@ -9665,13 +9434,6 @@ bool Type_handler_datetime_common::validate_implicit_default_value(THD *thd,
 
 
 /***************************************************************************/
-
-const Name & Type_handler_row::default_value() const
-{
-  DBUG_ASSERT(0);
-  static Name def(STRING_WITH_LEN(""));
-  return def;
-}
 
 const Name & Type_handler_numeric::default_value() const
 {

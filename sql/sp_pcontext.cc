@@ -94,9 +94,8 @@ sp_pcontext::sp_pcontext()
   m_parent(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
-  m_assoc_arrays(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
-  m_scope(REGULAR_SCOPE)
+  m_handlers(PSI_INSTRUMENT_MEM), m_composites(PSI_INSTRUMENT_MEM),
+  m_children(PSI_INSTRUMENT_MEM), m_scope(REGULAR_SCOPE)
 {
   init(0, 0, 0);
 }
@@ -108,9 +107,8 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   m_parent(prev), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
-  m_assoc_arrays(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
-  m_scope(scope)
+  m_handlers(PSI_INSTRUMENT_MEM), m_composites(PSI_INSTRUMENT_MEM),
+  m_children(PSI_INSTRUMENT_MEM), m_scope(scope)
 {
   init(prev->m_var_offset + prev->m_max_var_index,
        prev->current_cursor_count(),
@@ -429,6 +427,22 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
 }
 
 
+sp_composite *sp_pcontext::find_composite(const LEX_CSTRING *name,
+                               bool current_scope_only) const
+{
+  for (uint  i= 0; i < m_composites.elements(); i++)
+  {
+    sp_composite *p= m_composites.at(i);
+    if (p->eq_name(name))
+      return p;
+  }
+
+  return (!current_scope_only && m_parent) ?
+    m_parent->find_composite(name, false) :
+    NULL;
+}
+
+
 bool sp_pcontext::add_record(THD *thd, const Lex_ident_column &name,
                              Row_definition_list *field)
 {
@@ -437,34 +451,13 @@ bool sp_pcontext::add_record(THD *thd, const Lex_ident_column &name,
   if (p == NULL)
     return true;
 
-  return m_records.append(p);
-}
-
-
-sp_record *sp_pcontext::find_record(const LEX_CSTRING *name,
-                                    bool current_scope_only) const
-{
-  size_t i= m_records.elements();
-
-  while (i--)
-  {
-    sp_record *p= m_records.at(i);
-
-    if (p->eq_name(name))
-    {
-      return p;
-    }
-  }
-
-  return (!current_scope_only && m_parent) ?
-    m_parent->find_record(name, false) :
-    NULL;
+  return m_composites.append(p);
 }
 
 
 bool sp_pcontext::add_assoc_array(THD *thd,
                                   const Lex_ident_column &name,
-                                  Column_definition *key,
+                                  Spvar_definition *key,
                                   Spvar_definition *value)
 {
   sp_assoc_array *p= new (thd->mem_root) sp_assoc_array(name, key, value);
@@ -472,28 +465,7 @@ bool sp_pcontext::add_assoc_array(THD *thd,
   if (p == NULL)
     return true;
 
-  return m_assoc_arrays.append(p);
-}
-
-
-sp_assoc_array *sp_pcontext::find_assoc_array(const LEX_CSTRING *name,
-                                              bool current_scope_only) const
-{
-  size_t i= m_assoc_arrays.elements();
-
-  while (i--)
-  {
-    sp_assoc_array *p= m_assoc_arrays.at(i);
-
-    if (p->eq_name(name))
-    {
-      return p;
-    }
-  }
-
-  return (!current_scope_only && m_parent) ?
-    m_parent->find_assoc_array(name, false) :
-    NULL;
+  return m_composites.append(p);
 }
 
 

@@ -408,7 +408,7 @@ marks(1) := 78;
 SELECT marks.NEXT();
 END;
 $$
-ERROR 42000: Incorrect number of arguments for NEXT .; expected 1, got 0
+ERROR 42000: Incorrect number of arguments for NEXT ; expected 1, got 0
 #
 # NEXT, argument count error 2
 #
@@ -421,7 +421,7 @@ marks(1) := 78;
 SELECT marks.NEXT(0, 1);
 END;
 $$
-ERROR 42000: Incorrect number of arguments for NEXT .; expected 1, got 2
+ERROR 42000: Incorrect number of arguments for NEXT ; expected 1, got 2
 #
 # NEXT, NULL array
 #
@@ -471,7 +471,7 @@ marks(1) := 78;
 SELECT marks.PRIOR();
 END;
 $$
-ERROR 42000: Incorrect number of arguments for PRIOR .; expected 1, got 0
+ERROR 42000: Incorrect number of arguments for PRIOR ; expected 1, got 0
 #
 # PRIOR, argument count error 2
 #
@@ -484,7 +484,7 @@ marks(1) := 78;
 SELECT marks.PRIOR(0, 1);
 END;
 $$
-ERROR 42000: Incorrect number of arguments for PRIOR .; expected 1, got 2
+ERROR 42000: Incorrect number of arguments for PRIOR ; expected 1, got 2
 #
 # PRIOR, NULL array
 #
@@ -533,7 +533,7 @@ marks(0) := 62;
 SELECT marks.EXISTS();
 END;
 $$
-ERROR 42000: Incorrect number of arguments for EXISTS .; expected 1, got 0
+ERROR 42000: Incorrect number of arguments for EXISTS ; expected 1, got 0
 #
 # EXISTS, NULL key
 #
@@ -606,7 +606,7 @@ marks(2) := 99;
 SELECT marks.DELETE(1, 2);
 END;
 $$
-ERROR 42000: Incorrect number of arguments for DELETE .; expected 1, got 2
+ERROR 42000: Incorrect number of arguments for DELETE ; expected 1, got 2
 #
 # DELETE, NULL key
 #
@@ -997,7 +997,7 @@ SELECT person_by_nickname('Monty').first_name,
 person_by_nickname('Monty').last_name;
 END;
 $$
-ERROR HY000: Row variable '' does not have a field 'nick_name'
+ERROR HY000: Row variable 'person_by_nickname' does not have a field 'nick_name'
 #
 # Key access using another array's element
 #
@@ -1387,7 +1387,7 @@ BEGIN
 NULL;
 END;
 $$
-ERROR HY000: Unknown data type: 'marks_t'
+ERROR 42000: This version of MariaDB doesn't yet support 'nested associative arrays'
 #
 # Ensure that nested assoc array types cannot be used for record field
 #

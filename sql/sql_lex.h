@@ -3912,14 +3912,6 @@ public:
                                 Item *item, const LEX_CSTRING &expr_str);
   bool sp_set_assoc_array_copy_key(LEX *sub_lex);
 
-  Item *sp_get_assoc_array_method(THD *thd,
-                                  const Lex_ident_cli_st *ca,
-                                  const Lex_ident_cli_st *cb,
-                                  List<Item> *args);
-  Item *sp_get_assoc_array_method(THD *thd,
-                                  Item_splocal* array,
-                                  const Lex_ident_cli_st *method_name,
-                                  List<Item> *args);
   Item *sp_get_assoc_array_key(THD *thd, Item_splocal* array,
                                List<Item> *args, bool is_first);
   Item *sp_get_assoc_array_next_or_prior(THD *thd, Item_splocal* array,
@@ -3931,7 +3923,7 @@ public:
   Item *sp_get_assoc_array_delete(THD *thd, Item_splocal* array,
                                   List<Item> *args);
   bool sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
-                                             Column_definition *key_def,
+                                             Spvar_definition *key_def,
                                              Spvar_definition *value_def,
                                              Item *def,
                                              const LEX_CSTRING &expr_str);

@@ -26,6 +26,7 @@
 #include "sql_base.h"                       // open_tables_only_view_structure
 #include "sql_acl.h"                        // SELECT_ACL
 #include "sql_parse.h"                      // check_table_access
+#include "sql_type_assoc_array.h"
 
 
 Sp_rcontext_handler_local sp_rcontext_handler_local;
@@ -392,7 +393,7 @@ bool sp_rcontext::init_var_items(THD *thd,
       Item_field_assoc_array *item= new (thd->mem_root)
                                       Item_field_assoc_array(thd, field);
       if (!(m_var_items[idx]= item) ||
-          item->set_array_def(thd, def->assoc_array_definition()))
+          item->set_array_def(thd, def->row_field_definitions()))
         return true;
     }
     else
@@ -405,31 +406,6 @@ bool sp_rcontext::init_var_items(THD *thd,
     }
   }
   return false;
-}
-
-
-bool Item_field_assoc_array::set_array_def(THD *thd,
-                                           Assoc_array_definition *def)
-{
-  DBUG_ASSERT(field);
-
-  m_def= def;
-  Field_assoc_array *field_assoc_array= dynamic_cast<Field_assoc_array*>(field);
-  if (!field_assoc_array)
-    return true;
-
-  field_assoc_array->m_def= def;
-  return false;
-}
-
-
-uint Item_field_assoc_array::cols_for_elements() const
-{
-  if (m_def->m_value_def->is_row())
-  {
-    return m_def->m_value_def->row_field_definitions()->elements;
-  }
-  return 0;
 }
 
 
@@ -653,18 +629,6 @@ int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
 }
 
 
-int sp_rcontext::set_variable_row_field_by_name(THD *thd, uint var_idx,
-                                                const LEX_CSTRING &field_name,
-                                                Item **value)
-{
-  DBUG_ENTER("sp_rcontext::set_variable_row_field_by_name");
-  uint field_idx;
-  if (find_row_field_by_name_or_error(&field_idx, var_idx, field_name))
-    DBUG_RETURN(1);
-  DBUG_RETURN(set_variable_row_field(thd, var_idx, field_idx, value));
-}
-
-
 int sp_rcontext::set_variable_row(THD *thd, uint var_idx, List<Item> &items)
 {
   DBUG_ENTER("sp_rcontext::set_variable_row");
@@ -685,90 +649,55 @@ Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
 }
 
 
-int sp_rcontext::set_variable_assoc_array_by_key(THD *thd,
-                                                 uint var_idx,
-                                                 Item* key,
-                                                 Item **value)
+int sp_rcontext::set_variable_composite_by_name(THD *thd, uint var_idx,
+                                     const LEX_CSTRING &name,
+                                     Item **value)
 {
-  DBUG_ENTER("sp_rcontext::set_variable_assoc_array_by_key");
-  DBUG_ASSERT(value);
-  DBUG_ASSERT(key);
-  
+  DBUG_ENTER("sp_rcontext::set_variable_composite_by_name");
   DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
-  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ASSOC_ARRAY_RESULT);
+  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ROW_RESULT);
 
-  if (key->fix_fields_if_needed(thd, &key))
-    DBUG_RETURN(1);
-  
-  if (key->null_value)
-  {
-    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX,
-             MYF(0),
-             get_variable(var_idx)->name.str);
-    DBUG_RETURN(1);
-  }
+  DBUG_RETURN(set_variable_composite_by_name(thd, get_variable(var_idx), name, value));
+}
 
-  auto field_assoc_array= m_var_table->field[var_idx];
-  Item *item= field_assoc_array->element_by_key(thd, key->val_str());
-  if (!item)
-  {
-    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             key->val_str()->c_ptr());
-    DBUG_RETURN(1);
-  }
 
-  Field *field= item->field_for_view_update()->field;
-  DBUG_ASSERT(field);
+int sp_rcontext::set_variable_composite_by_name(THD *thd, Item_field *composite, const LEX_CSTRING &name, Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_composite_by_name");
+
+  auto handler= dynamic_cast<const Type_handler_composite *>(composite->type_handler());
+  DBUG_ASSERT(handler);
+
+  auto field= handler->get_field(thd, composite, name);
+  if (!field)
+    DBUG_RETURN(1);
 
   DBUG_RETURN(thd->sp_eval_expr(field, value));
 }
 
 
 int
-sp_rcontext::set_variable_assoc_array_field_by_key(THD *thd,
+sp_rcontext::set_variable_composite_field_by_key(THD *thd,
                                                    const LEX_CSTRING &var_name,
                                                    uint var_idx,
-                                                   Item *key,
+                                                   const LEX_CSTRING &elem_name,
                                                    const LEX_CSTRING &field_name,
                                                    Item **value)
 {
-  DBUG_ENTER("sp_rcontext::set_variable_assoc_array_field_by_key");
+  DBUG_ENTER("sp_rcontext::set_variable_composite_field_by_key");
   DBUG_ASSERT(value);
-  DBUG_ASSERT(key);
 
   DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
-  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ASSOC_ARRAY_RESULT);
 
-  if (key->fix_fields_if_needed(thd, &key))
+  auto composite= get_variable(var_idx);
+  auto handler= dynamic_cast<const Type_handler_composite *>(composite->type_handler());
+  DBUG_ASSERT(handler);
+
+  auto elem= handler->get_item(thd, composite, elem_name);
+  if (!elem)
     DBUG_RETURN(1);
-
-  if (key->null_value)
-  {
-    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX,
-             MYF(0),
-             get_variable(var_idx)->name.str);
-    DBUG_RETURN(1);
-  }
-
-  auto field_assoc_array= m_var_table->field[var_idx];
-  Item *item= ((const Field *)field_assoc_array)->
-                                  element_by_key(thd,
-                                                 key->val_str());
-  if (!item)
-  {
-    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
-             key->val_str()->ptr());
-    DBUG_RETURN(1);
-  }
-
-  Field *field= field_assoc_array->get_field_by_key_and_name(thd,
-                                                             var_name,
-                                                             key->val_str(),
-                                                             field_name);
-  if (!field)
-    DBUG_RETURN(1);
-
-  DBUG_RETURN(thd->sp_eval_expr(field, value));
+  
+  DBUG_RETURN(set_variable_composite_by_name(thd, elem, field_name, value));
 }
 
 

@@ -1556,7 +1556,7 @@ SET sql_mode=ORACLE;
 --echo # Ensure that nested assoc array types are properly parsed (without crash, etc)
 --echo #
 DELIMITER $$;
---error ER_UNKNOWN_DATA_TYPE
+--error ER_NOT_SUPPORTED_YET
 DECLARE
    TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
    TYPE classes_t IS TABLE OF marks_t INDEX BY INTEGER;

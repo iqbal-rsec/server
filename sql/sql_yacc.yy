@@ -72,6 +72,7 @@
 #include "json_table.h"
 #include "sql_update.h"
 #include "sql_delete.h"
+#include "sql_type_assoc_array.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -1456,7 +1457,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %ifdef ORACLE
 %type <spvar_definition> assoc_array_table_types
-%type <column_definition> assoc_array_index_type
+%type <spvar_definition> assoc_array_index_type
 %type <Lex_field_type> field_type_all_with_record assoc_array_index_types
 %endif
 
@@ -6514,17 +6515,24 @@ field_type_all_with_record:
           }
         | udt_name float_options srid_option
           {
-            sp_record *sprec = NULL;
+            sp_composite *composite= NULL;
             if (Lex->spcont)
             {
-              sprec= Lex->spcont->find_record(&$1, false);
-              if (sprec) {
-                $$.set(&type_handler_row, NULL);
-                Lex->last_field->set_attr_const_void_ptr(0, sprec);
+              if ((composite= Lex->spcont->find_composite(&$1, false))) {
+                if (likely(composite->type_handler() == &type_handler_row))
+                {
+                  $$.set(composite->type_handler(), NULL);
+                  Lex->last_field->set_attr_const_void_ptr(0, composite);
+                }
+                else
+                {
+                  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "nested associative arrays");
+                  MYSQL_YYABORT;
+                }
               }
             }
             
-            if (sprec == NULL)
+            if (composite == NULL)
             {
               if (Lex->set_field_type_udt(&$$, $1, $2))
                 MYSQL_YYABORT;
@@ -6540,26 +6548,17 @@ field_type_all_with_composites:
           }
         | udt_name float_options srid_option
           {
-            sp_record *sprec= NULL;
-            sp_assoc_array *spassoc= NULL;
+            sp_composite *composite= NULL;
             if (Lex->spcont)
             {
-              sprec= Lex->spcont->find_record(&$1, false);
-              if (sprec) {
-                $$.set(&type_handler_row, NULL);
-                Lex->last_field->set_attr_const_void_ptr(0, sprec);
-              }
-              else
+              if ((composite= Lex->spcont->find_composite(&$1, false)))
               {
-                spassoc= Lex->spcont->find_assoc_array(&$1, false);
-                if (spassoc) {
-                  $$.set(&type_handler_assoc_array, NULL);
-                  Lex->last_field->set_attr_const_void_ptr(0, spassoc);
-                }
+                $$.set(composite->type_handler(), NULL);
+                Lex->last_field->set_attr_const_void_ptr(0, composite);
               }
             }
             
-            if (sprec == NULL && spassoc == NULL)
+            if (composite == NULL)
             {
               if (Lex->set_field_type_udt(&$$, $1, $2))
                 MYSQL_YYABORT;
@@ -11004,8 +11003,7 @@ function_call_generic:
             const Type_handler *h;
             Create_func *builder;
             Item *item= NULL;
-            sp_record* rec= NULL;
-            sp_assoc_array* assoc= NULL;
+            sp_composite *composite= NULL;
             sp_variable *spv= NULL;
 
             bool allow_field_accessor= false;
@@ -11035,20 +11033,30 @@ function_call_generic:
               // Found a constructor with a proper argument count
             }
             else if (Lex->spcont &&
-                    (rec = Lex->spcont->find_record(&$1, false)))
+                    (composite= Lex->spcont->find_composite(&$1, false)))
             {
-              item= new (thd->mem_root) Item_row(thd, *$4);
-            }
-            else if (Lex->spcont &&
-                    (assoc = Lex->spcont->find_assoc_array(&$1, false)))
-            {
-              if (unlikely($4 && Lex->sp_check_assoc_array_args($1, *$4)))
-                MYSQL_YYABORT;
-
-              if (unlikely($4 == NULL))
-                item= new (thd->mem_root) Item_assoc_array(thd);
-              else
-                item= new (thd->mem_root) Item_assoc_array(thd, *$4);
+              if (composite->type_handler() == &type_handler_row)
+              {
+                if (unlikely($4 == nullptr))
+                {
+                  my_error(ER_WRONG_ARGUMENTS, MYF(0), $1.str);
+                  MYSQL_YYABORT;
+                }
+                
+                item= new (thd->mem_root) Item_row(thd, *$4);
+              }
+              else if (composite->type_handler() == &type_handler_assoc_array)
+              {
+                if (unlikely($4 == NULL))
+                  item= new (thd->mem_root) Item_assoc_array(thd);
+                else
+                {
+                  if (unlikely(Lex->sp_check_assoc_array_args($1, *$4)))
+                    MYSQL_YYABORT;
+                  
+                  item= new (thd->mem_root) Item_assoc_array(thd, *$4);
+                }
+              }
             }
             else if (Lex->spcont &&
                     (spv= Lex->spcont->find_variable(&$1, false)) &&
@@ -11119,7 +11127,7 @@ function_call_generic:
             if (Lex->spcont && (spv= Lex->spcont->find_variable(&$1, false)) &&
                                spv->field_def.is_assoc_array())
             {
-              if (unlikely(!($$= Lex->sp_get_assoc_array_method(thd,
+              if (unlikely(!($$= type_handler_assoc_array.create_item_method(thd,
                                                                 &$1,
                                                                 &$3,
                                                                 $5))))
@@ -20437,7 +20445,7 @@ assoc_array_index_type:
           INDEX_SYM BY assoc_array_index_types
           {
             Lex->last_field->set_attributes(thd, $3, COLUMN_DEFINITION_ROUTINE_LOCAL);
-            $$= Lex->last_field;
+            $$= new (thd->mem_root) Spvar_definition(*Lex->last_field);
           }
         ;
 

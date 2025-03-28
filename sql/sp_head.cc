@@ -166,51 +166,6 @@ bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 }
 
 
-bool Item_splocal_assoc_array_element::append_for_log(THD *thd, String *str)
-{
-  if (fix_fields_if_needed(thd, NULL))
-    return true;
-
-  if (limit_clause_param)
-    return str->append_ulonglong(val_uint());
-
-  if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
-      str->append(&m_name) ||
-      str->append('[') ||
-      ((m_key->val_str() && m_key->val_str()->ptr()) ?
-        str->append(*m_key->val_str()) :
-        str->append(NULL_clex_str)) ||
-      str->append(']') ||
-      str->append(STRING_WITH_LEN("',")))
-    return true;
-  return append_value_for_log(thd, str) || str->append(')');
-}
-
-
-bool Item_splocal_assoc_array_element_field::append_for_log(THD *thd,
-                                                            String *str)
-{
-  if (fix_fields_if_needed(thd, NULL))
-    return true;
-
-  if (limit_clause_param)
-    return str->append_ulonglong(val_uint());
-
-  if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
-      str->append(&m_name) ||
-      str->append('[') ||
-      ((m_key->val_str() && m_key->val_str()->ptr()) ?
-        str->append(*m_key->val_str()) :
-        str->append(NULL_clex_str)) ||
-      str->append(']') ||
-      str->append('.') ||
-      str->append(&m_field_name) ||
-      str->append(STRING_WITH_LEN("',")))
-    return true;
-  return append_value_for_log(thd, str) || str->append(')');
-}
-
-
 /**
    Returns a combination of:
    - sp_head::MULTI_RESULTS: added if the 'cmd' is a command that might
@@ -3851,8 +3806,8 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
 
-  sp_instr_set_row_field_by_name *sp_set=
-    new (thd->mem_root) sp_instr_set_row_field_by_name(instructions(),
+  sp_instr_set_composite_field_by_name *sp_set=
+    new (thd->mem_root) sp_instr_set_composite_field_by_name(instructions(),
                                                        spcont, rh,
                                                        spv->offset,
                                                        *field_name,
@@ -3877,8 +3832,8 @@ sp_head::set_local_variable_assoc_array(THD *thd, sp_pcontext *spcont,
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
 
-  sp_instr_set_assoc_array_by_key *sp_set= new (thd->mem_root)
-                                  sp_instr_set_assoc_array_by_key(
+  sp_instr_set_composite_field_by_name *sp_set= new (thd->mem_root)
+                                  sp_instr_set_composite_field_by_name(
                                                          instructions(),
                                                          spcont, rh,
                                                          spv->offset,
@@ -3900,8 +3855,8 @@ sp_head::set_local_variable_assoc_array_field(THD *thd, sp_pcontext *spcont,
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
 
-  sp_instr_set_assoc_array_field_by_key *sp_set=
-    new (thd->mem_root) sp_instr_set_assoc_array_field_by_key(instructions(),
+  sp_instr_set_composite_field_by_key *sp_set=
+    new (thd->mem_root) sp_instr_set_composite_field_by_key(instructions(),
                                                        spcont, rh,
                                                        spv->name,
                                                        spv->offset,

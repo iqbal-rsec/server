@@ -3895,7 +3895,6 @@ void select_max_min_finder_subselect::set_op(const Type_handler *th)
       op= &select_max_min_finder_subselect::cmp_str;
     break;
   case ROW_RESULT:
-  case ASSOC_ARRAY_RESULT:
     // This case should never be chosen
     DBUG_ASSERT(0);
     op= 0;
@@ -4070,10 +4069,10 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
       return 0;
     }
     else if (mvsp->type_handler() == &type_handler_assoc_array &&
-            item->cols_for_elements() != 0)
+             dynamic_cast<Item_composite_base *>(item)->cols_for_elements() != 0)
     {
       // SELECT INTO assoc_array_sp_variable
-      if (item->cols_for_elements() != list.elements)
+      if (dynamic_cast<Item_composite_base *>(item)->cols_for_elements() != list.elements)
         goto error;
       
       m_var_sp_assoc_array= mvsp;
@@ -4493,8 +4492,12 @@ Item_field *THD::get_variable(const sp_rcontext_addr &addr)
 
 bool my_var_sp_assoc_array_element::set(THD *thd, Item *item)
 {
+  LEX_CSTRING key;
+  if (type_handler_assoc_array.key_to_lex_cstring(thd, &m_key, name, key))
+    return true;
+
   return get_rcontext(thd->spcont)->
-            set_variable_assoc_array_by_key(thd, offset, m_key, &item);
+            set_variable_composite_by_name(thd, offset, key, &item);
 }
 
 
