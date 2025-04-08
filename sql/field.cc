@@ -2861,6 +2861,18 @@ void Field_row::sql_type_for_sp_returns(String &res) const
 }
 
 
+uint32 Field_row::pack_length() const
+{
+  if (!m_table)
+    return 0;
+  
+  uint32 len= 0;
+  for (uint i= 0; i < m_table->s->fields; i++)
+    len+= m_table->field[i]->pack_length();
+  return len;
+}
+
+
 /****************************************************************************
   Functions for the Field_decimal class
   This is an number stored as a pre-space (or pre-zero) string

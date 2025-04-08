@@ -775,7 +775,10 @@ static int assoc_array_tree_del(void *data_arg, TREE_FREE, void*)
 
 Field_assoc_array::Field_assoc_array(uchar *ptr_arg,
                                      const LEX_CSTRING *field_name_arg)
-  :Field_composite(ptr_arg, field_name_arg)
+  :Field_composite(ptr_arg, field_name_arg),
+   m_table(nullptr),
+   m_def(nullptr),
+   m_element_field(nullptr)
 {
   init_alloc_root(PSI_NOT_INSTRUMENTED, &m_mem_root, 512, 0, MYF(0));
 
@@ -1004,49 +1007,370 @@ bool Field_assoc_array::copy_and_convert_key(THD *thd, const String *key, String
 }
 
 
-Item_field *Field_assoc_array::create_element(THD *thd)
+class Field_assoc_array_element: public Field
 {
-  Item_field *item= NULL;
+protected:
+  uchar *m_buffer;
+  Field *m_field;
 
-  auto def= *(++m_def->begin());
-  const LEX_CSTRING empty_clex_str= {"", 0};
-  Field *field= NULL;
-  if (def.is_column_type_ref())
+public:
+  Field_assoc_array_element(uchar *buffer, Field *field)
+    :Field(field->ptr, 0, field->null_ptr, field->null_bit,
+	     field->unireg_check, &field->field_name),
+     m_buffer(buffer), m_field(field)
+  {
+    init(field->table);
+  }
+
+  Virtual_tmp_table *virtual_tmp_table() const override
+  {
+    return m_field->virtual_tmp_table();
+  }
+  Virtual_tmp_table **virtual_tmp_table_addr() override
+  {
+    return m_field->virtual_tmp_table_addr();
+  }
+
+  virtual void read_from_buffer() const= 0;
+
+  virtual void store_to_buffer()= 0;
+
+  bool sp_prepare_and_store_item(THD *thd, Item **value) override
+  {
+    if (m_field->sp_prepare_and_store_item(thd, value))
+      return true;
+
+    store_to_buffer();
+
+    return false;
+  }
+
+  Copy_func *get_copy_func(const Field *from) const override
+  {
+    return m_field->get_copy_func(from);
+  }
+
+  int save_in_field(Field *to) override
+  {
+    read_from_buffer();
+    return m_field->save_in_field(to);
+  }
+
+  bool memcpy_field_possible(const Field *from) const override
+  {
+    //return m_field->memcpy_field_possible(from);
+    return false;
+  }
+
+  bool send(Protocol *protocol) override
+  {
+    read_from_buffer();
+    return m_field->send(protocol);
+  }
+
+  uint32 pack_length() const override
+  {
+    return m_field->pack_length();
+  }
+
+  int store(const char *to, size_t length,CHARSET_INFO *cs) override
+  {
+    if ( m_field->store(to, length, cs))
+      return 1;
+    
+    store_to_buffer();
+    return 0;
+  }
+
+  int store(double nr) override
+  {
+    if (m_field->store(nr))
+      return 1;
+    
+    store_to_buffer();
+    return 0;
+  }
+
+  int store(longlong nr, bool unsigned_val) override
+  {
+    if (m_field->store(nr, unsigned_val))
+      return 1;
+    
+    store_to_buffer();
+    return 0;
+  }
+
+  int store_decimal(const my_decimal *d) override
+  {
+    if (m_field->store_decimal(d))
+      return 1;
+    
+    store_to_buffer();
+    return 0;
+  }
+
+  double val_real() override
+  {
+    read_from_buffer();
+
+    return m_field->val_real();
+  }
+
+  longlong val_int() override
+  {
+    read_from_buffer();
+
+    return m_field->val_int();
+  }
+
+  bool val_bool() override
+  {
+    read_from_buffer();
+
+    return m_field->val_bool();
+  }
+
+  my_decimal *val_decimal(my_decimal *dec) override
+  {
+    read_from_buffer();
+
+    return m_field->val_decimal(dec);
+  }
+
+  String *val_str(String *val_buffer, String *val_ptr) override
+  {
+    read_from_buffer();
+
+    return m_field->val_str(val_buffer, val_ptr);
+  }
+
+  const Type_handler *type_handler() const override
+  {
+    return m_field->type_handler();
+  }
+
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                            const Relay_log_info *rli,
+                                            const Conv_param &param)
+                                            const override
+  {
+    return m_field->rpl_conv_type_from(source, rli, param);
+  }
+
+  int cmp(const uchar *,const uchar *) const override
+  {
+    read_from_buffer();
+    return m_field->cmp(m_buffer, m_field->ptr);
+  }
+
+  void sql_type(String &str) const override
+  {
+    m_field->sql_type(str);
+  }
+
+  uint size_of() const override
+  {
+    return m_field->size_of();
+  }
+
+  void sort_string(uchar *buff,uint length) override
+  {
+    read_from_buffer();
+    m_field->sort_string(buff, length);
+  }
+
+  CHARSET_INFO *charset() const override
+  {
+    return m_field->charset();
+  }
+
+  const DTCollation &dtcollation() const override
+  {
+    return m_field->dtcollation();
+  }
+
+  uint32 max_display_length() const override
+  {
+    return m_field->max_display_length();
+  }
+
+  bool is_equal(const Column_definition &new_field) const override
+  {
+    return m_field->is_equal(new_field);
+  }
+
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                               const Item_bool_func *cond,
+                               scalar_comparison_op op, Item *value) override
+  {
+    return m_field->get_mm_leaf(param, key_part, cond, op, value);
+  }
+};
+
+
+class Field_assoc_array_scalar_element: public Field_assoc_array_element
+{
+public:
+  Field_assoc_array_scalar_element(uchar *buffer, Field *field)
+    :Field_assoc_array_element(buffer, field) {}
+protected:
+  void read_from_buffer() const override
+  {
+    m_field->unpack(m_field->ptr, m_buffer, m_buffer + 100);
+  }
+
+  void store_to_buffer() override
+  {
+    m_field->pack(m_buffer, m_field->ptr);
+  }
+};
+
+
+class Field_assoc_array_row_element: public Field_assoc_array_element
+{
+public:
+  Field_assoc_array_row_element(uchar *buffer, Field *field)
+    :Field_assoc_array_element(buffer, field) {}
+protected:
+  void read_from_buffer() const override
+  {
+    auto ptable= virtual_tmp_table();
+    const uchar *from= m_buffer;
+
+    for (uint i= 0; i < ptable->s->fields; i++)
+    {
+      Field *field= ptable->field[i];
+      from= field->unpack(field->ptr, from, m_buffer + 100);
+    }
+  }
+
+  void store_to_buffer() override
+  {
+    auto ptable= virtual_tmp_table();
+    auto to= m_buffer;
+
+    for (uint i= 0; i < ptable->s->fields; i++)
+    {
+      Field *field= ptable->field[i];
+      to= field->pack(to, field->ptr);
+    }
+  }
+};
+
+
+bool Field_assoc_array::init_element_field(THD *thd)
+{
+  auto value_def= *(++m_def->begin());
+  if (value_def.is_column_type_ref())
   {
     Column_definition cdef;
-    if (def.column_type_ref()->resolve_type_ref(thd,  &cdef))
+    if (value_def.column_type_ref()->resolve_type_ref(thd, &cdef))
       return NULL;
     
-    field= cdef.make_field(m_table->s, thd->mem_root, &empty_clex_str);
+    m_element_field= cdef.make_field(m_table->s, thd->mem_root, &empty_clex_str);
   }
   else
   {
-    field= def.make_field(m_table->s, thd->mem_root, &empty_clex_str);
+    m_element_field= value_def.make_field(m_table->s, thd->mem_root, &empty_clex_str);
   }
-  
-  field->init(m_table);
 
-  Field_row *field_row= dynamic_cast<Field_row*>(field);
+  if (!m_element_field)
+    return true;
+
+  m_element_field->init(m_table);
+
+  Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
   if (field_row)
   {
     field_row->field_name= field_name;
-    item= def.make_item_field_row(thd, field_row);
   }
   else
   {
     // Assign a buffer to the field
     uchar *tmp;
-    if (!(tmp= (uchar *)thd->alloc(field->pack_length() + 1)))
-      return NULL;
-    field->move_field(tmp + 1, field->maybe_null() ? tmp : 0, 1);
+    if (!(tmp= (uchar *)thd->alloc(m_element_field->pack_length() + 1)))
+      return true;
+    m_element_field->move_field(tmp + 1, m_element_field->maybe_null() ? tmp : 0, 1);
 
-    if (field->maybe_null())
-      field->set_null();
+    if (m_element_field->maybe_null())
+      m_element_field->set_null();
     
-    if (field->default_value)
-      field->set_default();
+    if (m_element_field->default_value)
+      m_element_field->set_default();
+  }
 
-    item= new (thd->mem_root) Item_field(thd, field);
+  return false;
+}
+
+
+Item_field *Field_assoc_array::create_element(THD *thd)
+{
+  Item_field *item= nullptr;
+
+  if (!m_element_field)
+  {
+    if (init_element_field(thd))
+      return nullptr;
+    
+    Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
+    if (field_row)
+    {
+      auto value_def= *(++m_def->begin());
+      // Modified from make_item_field_row
+      if (!field_row->virtual_tmp_table())
+      {
+        if (field_row->row_create_fields(thd, value_def))
+          return nullptr;
+      }
+    }
+  }
+  
+  /* Allocate buffer for the proxy */
+  //thd->alloc(m_element_field->pack_length() + 1);
+  uchar *buffer= (uchar *)my_malloc(PSI_NOT_INSTRUMENTED, m_element_field->pack_length() + 1, MYF(MY_ZEROFILL | MY_WME)); 
+  if (!buffer)
+    return NULL;
+
+  Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
+  if (field_row)
+  {
+    // TODO this doesn't work since the fields within ROWs doesn't go through
+    // the proxy
+    auto temp= my_malloc(PSI_NOT_INSTRUMENTED, sizeof(Field_assoc_array_row_element), MYF(MY_ZEROFILL | MY_WME));
+    if (!temp)
+      return nullptr;
+    auto field_proxy= ::new (temp) Field_assoc_array_row_element(buffer, m_element_field);
+    if (!field_proxy)
+      return nullptr;
+
+    // Modified from make_item_field_row
+    temp= my_malloc(PSI_NOT_INSTRUMENTED, sizeof(Item_field_row), MYF(MY_ZEROFILL | MY_WME));
+    if (!temp)
+      return nullptr;
+    auto item_row= ::new (temp) Item_field_row(thd, field_proxy);
+    if (!item_row)
+      return nullptr;
+    
+    // field->virtual_tmp_table() returns nullptr in case of ROW TYPE OF cursor
+    if (field_row->virtual_tmp_table() &&
+        item_row->add_array_of_item_field(thd, *field_row->virtual_tmp_table()))
+      return nullptr;
+    
+    item= item_row;
+  }
+  else
+  {
+    auto temp= my_malloc(PSI_NOT_INSTRUMENTED, sizeof(Field_assoc_array_scalar_element), MYF(MY_ZEROFILL | MY_WME));
+    if (!temp)
+      return nullptr;
+    auto field_proxy= ::new (temp) Field_assoc_array_scalar_element(buffer, m_element_field);
+    if (!field_proxy)
+      return nullptr;
+    
+    temp= my_malloc(PSI_NOT_INSTRUMENTED, sizeof(Item_field), MYF(MY_ZEROFILL | MY_WME));
+    if (!temp)
+      return nullptr;
+    item= ::new (temp) Item_field(thd, field_proxy);
   }
 
   return item;
@@ -1183,7 +1507,7 @@ bool Item_field_assoc_array::set_array_def(THD *thd,
   if (!field_assoc_array)
     return true;
 
-  field_assoc_array->m_def= def;
+  field_assoc_array->set_array_def(def);
   return false;
 }
 

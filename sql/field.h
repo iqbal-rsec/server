@@ -3097,7 +3097,7 @@ public:
   bool is_equal(const Column_definition &new_field) const override final;
   int cmp(const uchar *a, const uchar *b) const override final { return 0;}
   void sort_string(uchar *buff, uint length) override final {}
-  uint32 pack_length() const override final { return 0; }
+  uint32 pack_length() const override { return 0; }
   void sql_type(String &str) const override;
   uint size_of() const override final { return sizeof *this; }
   uint32 max_display_length() const override final { return 4; }
@@ -5259,6 +5259,7 @@ public:
   bool row_create_fields(THD *thd, List<Spvar_definition> *list);
   bool row_create_fields(THD *thd, const Spvar_definition &def);
   bool sp_prepare_and_store_item(THD *thd, Item **value) override;
+  uint32 pack_length() const override;
 };
 
 

@@ -9,17 +9,27 @@
 
 class Field_assoc_array final :public Field_composite
 {
-public:
+protected:
   MEM_ROOT m_mem_root;
   TREE m_tree;
 
   TABLE *m_table;
   Row_definition_list *m_def;
 
+  Field *m_element_field;
 public:
   Field_assoc_array(uchar *ptr_arg,
                     const LEX_CSTRING *field_name_arg);
   ~Field_assoc_array();
+
+  void set_array_def(Row_definition_list *def)
+  {
+    DBUG_ASSERT(def);
+    DBUG_ASSERT(def->elements == 2);
+    m_def= def;
+  }
+  bool init_element_field(THD *thd);
+
   bool sp_prepare_and_store_item(THD *thd, Item **value) override;
 
   uint rows() const override;
