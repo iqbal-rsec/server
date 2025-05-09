@@ -258,9 +258,15 @@ protected:
   TABLE_SHARE *m_table_share;
   Row_definition_list *m_def;
 
+  Field *m_key_field;
   Field *m_element_field;
   Item_field_packable *m_item_pack;
   Item *m_item;
+
+  /*
+    Modified copy of the key definition
+  */
+  Spvar_definition m_key_def;
 public:
   Field_assoc_array(uchar *ptr_arg,
                     const LEX_CSTRING *field_name_arg);
@@ -308,14 +314,13 @@ public:
     DBUG_ASSERT(0);
   }
 
-  CHARSET_INFO *key_charset() const;
   Item *get_element_item() const override { return m_item; }
+  Field *get_key_field() const { return m_key_field; }
 
 protected:
-  bool copy_and_convert_key(THD *thd, const String *key, String &key_copy)
-                                                                    const;
-
-  Field *create_element_field(THD *thd);
+  bool copy_and_convert_key(const String *key, String &key_copy) const;
+  bool unpack_key(const Binary_string &key, Binary_string *key_dst) const;
+  bool create_fields(THD *thd);
 
   /*
     Initialize the element base Field and Item_field for the
@@ -325,6 +330,10 @@ protected:
 
   bool create_element_buffer(THD *thd, Binary_string *buffer);
   bool insert_element(Assoc_array_data *data);
+
+  bool get_next_or_prior_key(const String *curr_key,
+                             String *new_key,
+                             bool is_next);
 };
 
 

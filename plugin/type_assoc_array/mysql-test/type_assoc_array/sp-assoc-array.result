@@ -902,7 +902,7 @@ $$
 marks(1)
 62
 #
-# Key numeric, range (min)
+# INTEGER key, range (min)
 #
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
@@ -913,7 +913,7 @@ END;
 $$
 ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-2147483649'
 #
-# Key numeric, range (max)
+# INTEGER key, range (max)
 #
 DECLARE
 TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
@@ -923,6 +923,345 @@ marks(2147483648) := 62;
 END;
 $$
 ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '2147483648'
+#
+# INTEGER UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# INTEGER UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+marks marks_t;
+BEGIN
+marks(4294967296) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '4294967296'
+#
+# INTEGER UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+marks marks_t;
+BEGIN
+marks(4294967295) := 62;
+SELECT marks(4294967295);
+END;
+$$
+marks(4294967295)
+62
+#
+# TINYINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+marks marks_t;
+BEGIN
+marks(-129) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-129'
+#
+# TINYINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+marks marks_t;
+BEGIN
+marks(128) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '128'
+#
+# TINYINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# TINYINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# TINYINT UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(256) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '256'
+#
+# TINYINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(255) := 62;
+SELECT marks(255);
+END;
+$$
+marks(255)
+62
+#
+# SMALLINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+marks marks_t;
+BEGIN
+marks(-32769) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-32769'
+#
+# SMALLINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+marks marks_t;
+BEGIN
+marks(32768) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '32768'
+#
+# SMALLINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# SMALLINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# SMALLINT UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(65536) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '65536'
+#
+# SMALLINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(65535) := 62;
+SELECT marks(65535);
+END;
+$$
+marks(65535)
+62
+#
+# MEDIUMINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+marks marks_t;
+BEGIN
+marks(-8388609) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-8388609'
+#
+# MEDIUMINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+marks marks_t;
+BEGIN
+marks(8388608) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '8388608'
+#
+# MEDIUMINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# MEDIUMINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# MEDIUMINT UNSIGNED key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(16777216) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '16777216'
+#
+# MEDIUMINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(16777215) := 62;
+SELECT marks(16777215);
+END;
+$$
+marks(16777215)
+62
+#
+# BIGINT key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+marks marks_t;
+BEGIN
+marks(-9223372036854775809) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-9223372036854775809'
+#
+# BIGINT key, range (max)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+marks marks_t;
+BEGIN
+marks(9223372036854775808) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '9223372036854775808'
+#
+# BIGINT key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+marks marks_t;
+BEGIN
+marks(0) := 62;
+END;
+$$
+#
+# BIGINT UNSIGNED key, range (min)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(-1) := 62;
+END;
+$$
+ERROR HY000: Incorrect ASSOCIATIVE ARRAY KEY value: '-1'
+#
+# BIGINT UNSIGNED key, range (valid)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT UNSIGNED;
+marks marks_t;
+BEGIN
+marks(18446744073709551615) := 62;
+SELECT marks(18446744073709551615);
+END;
+$$
+marks(18446744073709551615)
+62
+#
+# INTEGER key, sort order
+#
+DECLARE
+TYPE depts_t IS TABLE OF VARCHAR2(30) INDEX BY INTEGER;
+depts depts_t;
+t INTEGER;
+BEGIN
+depts(999) := 'Security';
+depts(99) := 'HR';
+depts(9) := 'Accounting';
+depts(-9) := 'Engineering';
+depts(-99) := 'Marketing';
+depts(-999) := 'Sales';
+t:= depts.FIRST;
+WHILE t IS NOT NULL
+LOOP
+SELECT depts(t), t;
+t:= depts.NEXT(t);
+END LOOP;
+END;
+$$
+depts(t)	t
+Sales	-999
+depts(t)	t
+Marketing	-99
+depts(t)	t
+Engineering	-9
+depts(t)	t
+Accounting	9
+depts(t)	t
+HR	99
+depts(t)	t
+Security	999
+#
+# Key numeric, character access (convertable to integer)
+#
+DECLARE
+TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+marks marks_t;
+BEGIN
+marks(1) := 62;
+SELECT marks('01');
+END;
+$$
+marks('01')
+62
 #
 # Key numeric, character access
 #

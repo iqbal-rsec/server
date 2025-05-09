@@ -1014,7 +1014,7 @@ $$
 DELIMITER ;$$
 
 --echo #
---echo # Key numeric, range (min)
+--echo # INTEGER key, range (min)
 --echo #
 DELIMITER $$;
 --error ER_WRONG_VALUE
@@ -1028,7 +1028,7 @@ $$
 DELIMITER ;$$
 
 --echo #
---echo # Key numeric, range (max)
+--echo # INTEGER key, range (max)
 --echo #
 DELIMITER $$;
 --error ER_WRONG_VALUE
@@ -1041,6 +1041,408 @@ END;
 $$
 DELIMITER ;$$
 
+--echo #
+--echo # INTEGER UNSIGNED key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(-1) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # INTEGER UNSIGNED key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(4294967296) := 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # INTEGER UNSIGNED key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(4294967295) := 62;
+  SELECT marks(4294967295);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TINYINT key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+  marks marks_t;
+BEGIN
+  marks(-129) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TINYINT key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+  marks marks_t;
+BEGIN
+  marks(128) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TINYINT key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TINYINT UNSIGNED key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(-1) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TINYINT UNSIGNED key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(256) := 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # TINYINT UNSIGNED key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY TINYINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(255) := 62;
+  SELECT marks(255);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SMALLINT key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+  marks marks_t;
+BEGIN
+  marks(-32769) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SMALLINT key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+  marks marks_t;
+BEGIN
+  marks(32768) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SMALLINT key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SMALLINT UNSIGNED key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(-1) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SMALLINT UNSIGNED key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(65536) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SMALLINT UNSIGNED key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY SMALLINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(65535) := 62;
+  SELECT marks(65535);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MEDIUMINT key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+  marks marks_t;
+BEGIN
+  marks(-8388609) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MEDIUMINT key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+  marks marks_t;
+BEGIN
+  marks(8388608) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MEDIUMINT key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MEDIUMINT UNSIGNED key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(-1) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MEDIUMINT UNSIGNED key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(16777216) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MEDIUMINT UNSIGNED key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY MEDIUMINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(16777215) := 62;
+  SELECT marks(16777215);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # BIGINT key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+  marks marks_t;
+BEGIN
+  marks(-9223372036854775809) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # BIGINT key, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+  marks marks_t;
+BEGIN
+  marks(9223372036854775808) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # BIGINT key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # BIGINT UNSIGNED key, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(-1) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # BIGINT UNSIGNED key, range (valid)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY BIGINT UNSIGNED;
+  marks marks_t;
+BEGIN
+  marks(18446744073709551615) := 62;
+  SELECT marks(18446744073709551615);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # INTEGER key, sort order
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE depts_t IS TABLE OF VARCHAR2(30) INDEX BY INTEGER;
+  depts depts_t;
+  t INTEGER;
+BEGIN
+  depts(999) := 'Security';
+  depts(99) := 'HR';
+  depts(9) := 'Accounting';
+  depts(-9) := 'Engineering';
+  depts(-99) := 'Marketing';
+  depts(-999) := 'Sales';
+  t:= depts.FIRST;
+  WHILE t IS NOT NULL
+  LOOP
+    SELECT depts(t), t;
+    t:= depts.NEXT(t);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Key numeric, character access (convertable to integer)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1) := 62;
+  SELECT marks('01');
+END;
+$$
+DELIMITER ;$$
 
 --echo #
 --echo # Key numeric, character access

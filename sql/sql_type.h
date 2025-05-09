@@ -5154,14 +5154,48 @@ public:
 };
 
 
-class Type_limits_int
+class Type_range_int
+{
+  const longlong m_min_signed;
+  const longlong m_max_signed;
+  const ulonglong m_max_unsigned;
+public:
+  Type_range_int(longlong min_signed, longlong max_signed,
+                  ulonglong max_unsigned)
+   :m_min_signed(min_signed), m_max_signed(max_signed),
+    m_max_unsigned(max_unsigned)
+  { }
+  longlong min_signed() const { return m_min_signed; }
+  longlong max_signed() const { return m_max_signed; }
+  ulonglong max_unsigned() const { return m_max_unsigned; }
+
+  static Type_range_int range8() {
+    return Type_range_int(INT_MIN8, INT_MAX8, UINT_MAX8);
+  }
+  static Type_range_int range16() {
+    return Type_range_int(INT_MIN16, INT_MAX16, UINT_MAX16);
+  }
+  static Type_range_int range24() {
+    return Type_range_int(INT_MIN24, INT_MAX24, UINT_MAX24);
+  }
+  static Type_range_int range32() {
+    return Type_range_int(INT_MIN32, INT_MAX32, UINT_MAX32);
+  }
+  static Type_range_int range64() {
+    return Type_range_int(INT_MIN64, INT_MAX64, UINT64_MAX);
+  }
+};
+
+
+class Type_limits_int: public Type_range_int
 {
 private:
   uint32 m_precision;
   uint32 m_char_length;
 public:
-  Type_limits_int(uint32 prec, uint32 nchars)
-   :m_precision(prec), m_char_length(nchars)
+  Type_limits_int(uint32 prec, uint32 nchars, const Type_range_int &range)
+   :Type_range_int(range),
+    m_precision(prec), m_char_length(nchars)
   { }
   uint32 precision() const { return m_precision; }
   uint32 char_length() const { return m_char_length; }
@@ -5176,7 +5210,8 @@ class Type_limits_uint8: public Type_limits_int
 {
 public:
   Type_limits_uint8()
-   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH)
+   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH,
+                    Type_range_int::range8())
   { }
 };
 
@@ -5185,7 +5220,8 @@ class Type_limits_sint8: public Type_limits_int
 {
 public:
   Type_limits_sint8()
-   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH + 1)
+   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH + 1,
+                    Type_range_int::range8())
   { }
 };
 
@@ -5198,7 +5234,8 @@ class Type_limits_uint16: public Type_limits_int
 {
 public:
   Type_limits_uint16()
-   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH)
+   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH,
+                    Type_range_int::range16())
   { }
 };
 
@@ -5207,7 +5244,8 @@ class Type_limits_sint16: public Type_limits_int
 {
 public:
   Type_limits_sint16()
-   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH + 1)
+   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH + 1,
+                    Type_range_int::range16())
   { }
 };
 
@@ -5220,7 +5258,8 @@ class Type_limits_uint24: public Type_limits_int
 {
 public:
   Type_limits_uint24()
-   :Type_limits_int(MAX_MEDIUMINT_WIDTH, MAX_MEDIUMINT_WIDTH)
+   :Type_limits_int(MAX_MEDIUMINT_WIDTH, MAX_MEDIUMINT_WIDTH,
+                    Type_range_int::range24())
   { }
 };
 
@@ -5229,7 +5268,8 @@ class Type_limits_sint24: public Type_limits_int
 {
 public:
   Type_limits_sint24()
-   :Type_limits_int(MAX_MEDIUMINT_WIDTH - 1, MAX_MEDIUMINT_WIDTH)
+   :Type_limits_int(MAX_MEDIUMINT_WIDTH - 1, MAX_MEDIUMINT_WIDTH,
+                    Type_range_int::range24())
   { }
 };
 
@@ -5242,7 +5282,8 @@ class Type_limits_uint32: public Type_limits_int
 {
 public:
   Type_limits_uint32()
-   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH)
+   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH,
+                    Type_range_int::range32())
   { }
 };
 
@@ -5252,7 +5293,8 @@ class Type_limits_sint32: public Type_limits_int
 {
 public:
   Type_limits_sint32()
-   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH + 1)
+   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH + 1,
+                    Type_range_int::range32())
   { }
 };
 
@@ -5264,7 +5306,8 @@ public:
 class Type_limits_uint64: public Type_limits_int
 {
 public:
-  Type_limits_uint64(): Type_limits_int(MAX_BIGINT_WIDTH, MAX_BIGINT_WIDTH)
+  Type_limits_uint64(): Type_limits_int(MAX_BIGINT_WIDTH, MAX_BIGINT_WIDTH,
+                                        Type_range_int::range64())
   { }
 };
 
@@ -5273,7 +5316,8 @@ class Type_limits_sint64: public Type_limits_int
 {
 public:
   Type_limits_sint64()
-   :Type_limits_int(MAX_BIGINT_WIDTH - 1, MAX_BIGINT_WIDTH)
+   :Type_limits_int(MAX_BIGINT_WIDTH - 1, MAX_BIGINT_WIDTH,
+                    Type_range_int::range64())
   { }
 };
 

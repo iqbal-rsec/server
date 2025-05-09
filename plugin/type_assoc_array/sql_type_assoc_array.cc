@@ -489,7 +489,7 @@ public:
       dynamic_cast<Field_assoc_array *>(get_composite_field(item));
     DBUG_ASSERT(var_field);
 
-    item->collation.collation= var_field->key_charset();
+    item->collation.collation= var_field->get_key_field()->charset();
 
     return false;
   }
@@ -946,7 +946,15 @@ static int assoc_array_tree_cmp(void *arg, const void *lhs_arg,
 {
   const Assoc_array_data *lhs= (const Assoc_array_data *)lhs_arg;
   const Assoc_array_data *rhs= (const Assoc_array_data *)rhs_arg;
-  return sortcmp(&lhs->m_key, &rhs->m_key, (CHARSET_INFO*)arg);
+
+  auto field= reinterpret_cast<Field *>(arg);
+  DBUG_ASSERT(field);
+
+  if (field->type() == MYSQL_TYPE_VARCHAR)
+    return sortcmp(&lhs->m_key, &rhs->m_key, field->charset());
+
+  return field->cmp(reinterpret_cast<const uchar*>(lhs->m_key.ptr()),
+                    reinterpret_cast<const uchar*>(rhs->m_key.ptr()));
 }
 
 
@@ -999,16 +1007,6 @@ Field_assoc_array::~Field_assoc_array()
 }
 
 
-CHARSET_INFO *Field_assoc_array::key_charset() const
-{
-  if (!m_def || !m_def->elements)
-    return &my_charset_bin;
-
-  auto &key_def= *m_def->begin();
-  return key_def.charset;
-}
-
-
 bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
 {
   DBUG_ENTER("Field_assoc_array::sp_prepare_and_store_item");
@@ -1054,7 +1052,7 @@ bool Field_assoc_array::sp_prepare_and_store_item(THD *thd, Item **value)
       m_item_pack->set_buffer(&data.m_value);
       m_item_pack->pack();
 
-      if (copy_and_convert_key(thd, &src_key, data.m_key))
+      if (copy_and_convert_key(&src_key, data.m_key))
         goto error;
 
       if (insert_element(&data))
@@ -1077,7 +1075,7 @@ bool Field_assoc_array::insert_element(Assoc_array_data *data)
   DBUG_ASSERT(data->m_key.get_thread_specific());
   DBUG_ASSERT(data->m_value.get_thread_specific());
 
-  if (unlikely(!tree_insert(&m_tree, data, 0, (void *) key_charset())))
+  if (unlikely(!tree_insert(&m_tree, data, 0, m_key_field)))
     return true;
 
   data->release();
@@ -1095,13 +1093,13 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
     return NULL;
 
   Assoc_array_data data;
-  if (copy_and_convert_key(thd, key, data.m_key))
+  if (copy_and_convert_key(key, data.m_key))
     return nullptr;
 
   bool is_inserted= false;
   Assoc_array_data *tree_data= (Assoc_array_data *)
                                tree_search(&m_tree, &data.m_key,
-                               (void *) key_charset());
+                               m_key_field);
   if (!tree_data)
   {
     // Create an element for the key if not found
@@ -1114,8 +1112,10 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key)
   
     is_inserted= true;
 
-    tree_data= (Assoc_array_data *) tree_search(&m_tree, key,
-                                                (void *) key_charset());
+    if (copy_and_convert_key(key, data.m_key))
+      return nullptr;
+    tree_data= (Assoc_array_data *) tree_search(&m_tree, &data.m_key,
+                                                m_key_field);
     DBUG_ASSERT(tree_data);
   }
 
@@ -1134,13 +1134,13 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key) const
     return NULL;
 
   String key_copy;
-  if (copy_and_convert_key(thd, key, key_copy))
+  if (copy_and_convert_key(key, key_copy))
     return NULL;
 
   Assoc_array_data *data= (Assoc_array_data *)
                            tree_search((TREE *)&m_tree,
                                         &key_copy,
-                                        (void *)key_charset());
+                                        m_key_field);
   if (!data)
     return NULL;
 
@@ -1151,8 +1151,7 @@ Item_field *Field_assoc_array::element_by_key(THD *thd, String *key) const
 }
 
 
-bool Field_assoc_array::copy_and_convert_key(THD *thd,
-                                             const String *key,
+bool Field_assoc_array::copy_and_convert_key(const String *key,
                                              String &key_copy) const
 {
   DBUG_ASSERT(key);
@@ -1172,24 +1171,106 @@ bool Field_assoc_array::copy_and_convert_key(THD *thd,
   }
   else
   {
-    if (key_copy.copy(key, key_charset(), &errors))
+    auto type_handler= dynamic_cast<const Type_handler_general_purpose_int*>
+                                                    (key_def.type_handler());
+    DBUG_ASSERT(type_handler);
+
+    if (key_copy.copy(key, m_key_field->charset(), &errors))
       return true;
 
-    // Convert the key to a number to perform range check
-    // Follow Oracle's range for numerical keys
+    /*
+      Convert the key to a number to perform range check
+    */
     char *endptr;
     int error;
-    long key_long= key_charset()->strntol(key_copy.ptr(),
-                                          key_copy.length(),
-                                          10, &endptr, &error);
+
+    longlong key_ll;
+    ulonglong key_ull;
+
+    bool is_unsigned= type_handler->is_unsigned();
+    auto cs= m_key_field->charset();
+    if (is_unsigned)
+    {
+      key_ull= cs->strntoull10rnd(key_copy.ptr(), key_copy.length(),
+                                  1, &endptr, &error);
+      
+    }
+    else
+      key_ll= cs->strntoll(key_copy.ptr(), key_copy.length(),
+                           10, &endptr, &error);
 
     if (error ||
-        (endptr != key_copy.ptr() + key_copy.length()) ||
-        key_long < INT32_MIN || key_long > INT32_MAX)
+        (endptr != key_copy.ptr() + key_copy.length()))
     {
       my_error(ER_WRONG_VALUE, MYF(0), "ASSOCIATIVE ARRAY KEY",
                key_copy.c_ptr());
       return true;
+    }
+
+    if (is_unsigned)
+    {
+      if (key_ull > type_handler->type_limits_int()->max_unsigned())
+        error= 1;
+    }
+    else
+    {
+      if (key_ll < type_handler->type_limits_int()->min_signed() ||
+          key_ll > type_handler->type_limits_int()->max_signed())
+        error= 1;
+    }
+
+    if (error)
+    {
+      my_error(ER_WRONG_VALUE, MYF(0), "ASSOCIATIVE ARRAY KEY",
+               key_copy.c_ptr());
+      return true;
+    }
+
+    key_copy.length(0);
+    if (unlikely(key_copy.alloc(8)))
+      return true;
+    
+    if (is_unsigned)
+      key_copy.q_append_int64((longlong)key_ull);
+    else
+      key_copy.q_append_int64(key_ll);
+  }
+
+  return false;
+}
+
+
+bool Field_assoc_array::unpack_key(const Binary_string &key,
+                                   Binary_string *key_dst) const
+{
+  auto &key_def= *m_def->begin();
+  if (key_def.type_handler()->field_type() == MYSQL_TYPE_VARCHAR)
+  {
+    if (key_dst->copy(key))
+      return true;
+  }
+  else
+  {
+    auto type_handler= dynamic_cast<const Type_handler_general_purpose_int*>
+                                                    (key_def.type_handler());
+    const bool is_unsigned= type_handler->is_unsigned();
+    /*
+      Reset the string length before appending
+    */
+    key_dst->length(0);
+
+    if (unlikely(key_dst->alloc(type_handler->
+                                  type_limits_int()->char_length())))
+      return true;
+    if (is_unsigned)
+    {
+      auto key_val= uint8korr(key.ptr());
+      key_dst->qs_append(key_val);
+    }
+    else
+    {
+      auto key_val= sint8korr(key.ptr());
+      key_dst->qs_append_int64(key_val);
     }
   }
 
@@ -1197,32 +1278,66 @@ bool Field_assoc_array::copy_and_convert_key(THD *thd,
 }
 
 
-Field *Field_assoc_array::create_element_field(THD *thd)
+bool Field_assoc_array::create_fields(THD *thd)
 {
-  Field *field= nullptr;
+  /*
+    Initialize the element field
+  */
   auto &value_def= *(++m_def->begin());
   if (value_def.is_column_type_ref())
   {
     Column_definition cdef;
     if (value_def.column_type_ref()->resolve_type_ref(thd, &cdef))
-      return nullptr;
+      return true;
 
-    field= cdef.make_field(m_table_share, thd->mem_root, &empty_clex_str);
+    m_element_field= cdef.make_field(m_table_share,
+                                     thd->mem_root,
+                                     &empty_clex_str);
   }
   else
-    field= value_def.make_field(m_table_share, thd->mem_root, &empty_clex_str);
+    m_element_field= value_def.make_field(m_table_share,
+                                          thd->mem_root,
+                                          &empty_clex_str);
 
-  if (!field)
-    return nullptr;
-  
-  if (!(m_table= create_virtual_tmp_table(thd, field)))
-    return nullptr;
+  if (!m_element_field)
+    return true;
 
-  Field_row *field_row= dynamic_cast<Field_row*>(field);
+  if (!(m_table= create_virtual_tmp_table(thd, m_element_field)))
+    return true;
+
+  Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
   if (field_row)
     field_row->field_name= field_name;
 
-  return field;
+  /*
+    Initialize the key field
+  */
+  m_key_def= *m_def->begin();
+
+  if (m_key_def.type_handler()->field_type() != MYSQL_TYPE_VARCHAR)
+  {
+    DBUG_ASSERT(dynamic_cast<const Type_handler_general_purpose_int*>
+                                        (m_key_def.type_handler()));
+
+    if (m_key_def.type_handler()->is_unsigned())
+      m_key_def.set_handler(&type_handler_ulonglong);
+    else
+      m_key_def.set_handler(&type_handler_slonglong);
+
+    /*
+      We need the key_def.pack_flag to be valid so that signedness can be
+      determined
+    */
+    m_key_def.sp_prepare_create_field(thd, thd->mem_root);
+  }
+
+  m_key_field= m_key_def.make_field(m_table_share,
+                                  thd->mem_root,
+                                  &empty_clex_str);
+  if (!m_key_field)
+    return true;
+
+  return false;
 }
 
 
@@ -1231,7 +1346,7 @@ bool Field_assoc_array::init_element_base(THD *thd)
   if (m_element_field)
     return false;
 
-  if (!(m_element_field= create_element_field(thd)))
+  if (unlikely(create_fields(thd)))
     return true;
 
   Field_row *field_row= dynamic_cast<Field_row*>(m_element_field);
@@ -1305,13 +1420,13 @@ Item **Field_assoc_array::element_addr_by_key(THD *thd, String *key)
     return NULL;
 
   String key_copy;
-  if (copy_and_convert_key(thd, key, key_copy))
+  if (copy_and_convert_key(key, key_copy))
     return NULL;
 
   Assoc_array_data *data= (Assoc_array_data *)
                           tree_search(&m_tree,
                                       &key_copy,
-                                      (void *)key_charset());
+                                      m_key_field);
   if (!data)
     return NULL;
 
@@ -1334,8 +1449,12 @@ bool Field_assoc_array::delete_element_by_key(String *key)
 {
   if (!key)
     return false; // We do not care if the key is NULL
+  
+  String key_copy;
+  if (copy_and_convert_key(key, key_copy))
+    return NULL;
 
-  (void) tree_delete(&m_tree, key, 0, (void *)key_charset());
+  (void) tree_delete(&m_tree, &key_copy, 0, m_key_field);
   return false;
 }
 
@@ -1359,7 +1478,7 @@ bool Field_assoc_array::get_key(String *key, bool is_first)
                                            offsetof(TREE_ELEMENT, right));
   if (data)
   {
-    key->copy(data->m_key);
+    unpack_key(data->m_key, key);
     return false;
   }
 
@@ -1369,47 +1488,43 @@ bool Field_assoc_array::get_key(String *key, bool is_first)
 
 bool Field_assoc_array::get_next_key(const String *curr_key, String *next_key)
 {
-  DBUG_ASSERT(next_key);
-
-  TREE_ELEMENT **last_pos;
-  TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
-
-  if (!curr_key)
-    return true;
-
-  Assoc_array_data *data= (Assoc_array_data *)
-                          tree_search_key(&m_tree, curr_key, 
-                          parents, &last_pos,
-                          HA_READ_AFTER_KEY, (void *)key_charset());
-  if (data)
-  {
-    next_key->copy(data->m_key);
-    return false;
-  }
-  return true;
+  return get_next_or_prior_key(curr_key, next_key, true);
 }
 
 
 bool Field_assoc_array::get_prior_key(const String *curr_key, String *prior_key)
 {
-  DBUG_ASSERT(prior_key);
+  return get_next_or_prior_key(curr_key, prior_key, false);
+}
+
+
+bool Field_assoc_array::get_next_or_prior_key(const String *curr_key,
+                                              String *new_key,
+                                              bool is_next)
+{
+  DBUG_ASSERT(new_key);
 
   TREE_ELEMENT **last_pos;
   TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
 
   if (!curr_key)
     return true;
+  
+  String key_copy;
+  if (copy_and_convert_key(curr_key, key_copy))
+    return true;
 
   Assoc_array_data *data= (Assoc_array_data *)
                           tree_search_key(&m_tree,
-                                          curr_key, 
+                                          &key_copy, 
                                           parents,
                                           &last_pos,
-                                          HA_READ_BEFORE_KEY,
-                                          (void *)key_charset());
+                                          is_next ? HA_READ_AFTER_KEY :
+                                                    HA_READ_BEFORE_KEY,
+                                          m_key_field);
   if (data)
   {
-    prior_key->copy(data->m_key);
+    unpack_key(data->m_key, new_key);
     return false;
   }
   return true;
