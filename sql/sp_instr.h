@@ -20,14 +20,24 @@ public:
   sp_lex_cursor(THD *thd, const LEX *oldlex, MEM_ROOT *mem_root_arg)
     : sp_lex_local(thd, oldlex),
       Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP),
-      m_expr_str(empty_clex_str)
+      m_expr_str(empty_clex_str),
+      m_item(nullptr)
   {}
 
   sp_lex_cursor(THD *thd, const LEX *oldlex)
     : sp_lex_local(thd, oldlex),
       Query_arena(thd->lex->sphead->get_main_mem_root(),
                   STMT_INITIALIZED_FOR_SP),
-      m_expr_str(empty_clex_str)
+      m_expr_str(empty_clex_str),
+      m_item(nullptr)
+  {}
+
+  sp_lex_cursor(THD *thd, const LEX *oldlex, Item *item)
+    : sp_lex_local(thd, oldlex),
+      Query_arena(thd->lex->sphead->get_main_mem_root(),
+                  STMT_INITIALIZED_FOR_SP),
+      m_expr_str(empty_clex_str),
+      m_item(item)
   {}
 
   ~sp_lex_cursor() { free_items(); }
@@ -44,6 +54,9 @@ public:
 
   bool validate()
   {
+    if (get_item() != nullptr)
+      return false;
+
     DBUG_ASSERT(sql_command == SQLCOM_SELECT);
     if (result)
     {
@@ -81,8 +94,19 @@ public:
     return this;
   }
 
+  void set_item(Item *item)
+  {
+    m_item= item;
+  }
+
+  Item *get_item() const
+  {
+    return m_item;
+  }
+
 private:
   LEX_CSTRING m_expr_str;
+  Item *m_item;
 };
 
 
@@ -1778,13 +1802,27 @@ public:
     return m_cursor_stmt;
   }
 
-private:
+protected:
   bool m_metadata_changed;
   LEX_CSTRING m_cursor_stmt;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
+};
+
+
+class sp_instr_copen_by_ref_dyn : public sp_instr_copen_by_ref
+{
+public:
+  sp_instr_copen_by_ref_dyn(uint ip, sp_pcontext *ctx,
+                            const sp_rcontext_ref &ref,
+                            sp_lex_cursor *lex)
+   :sp_instr_copen_by_ref(ip, ctx, ref, lex)
+  { }
+
+  int execute(THD *thd, uint *nextp) override;
+  void print(String *str) override;
 };
 
 

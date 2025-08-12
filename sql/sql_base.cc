@@ -4999,8 +4999,9 @@ bool DML_prelocking_strategy::handle_routine(THD *thd,
     parser.
   */
 
-  if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
-      rt->mdl_request.key.mdl_namespace() != MDL_key::PROCEDURE)
+  if ((rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
+      rt->mdl_request.key.mdl_namespace() != MDL_key::PROCEDURE) &&
+      (thd->variables.sql_mode & MODE_ORACLE) == 0)
   {
     *need_prelocking= TRUE;
     sp_update_stmt_used_routines(thd, prelocking_ctx, &sp->m_sroutines,

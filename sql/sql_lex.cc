@@ -7665,14 +7665,100 @@ bool LEX::sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
   }
   if (check_variable_is_refcursor({STRING_WITH_LEN("OPEN")}, spv))
     return true;
-  auto *i= new (thd->mem_root) sp_instr_copen_by_ref(
+  
+  Item *tmp_var= stmt->get_item();
+  auto *i= !tmp_var ? new (thd->mem_root) sp_instr_copen_by_ref(
                                  sphead->instructions(), spcont,
                                  sp_rcontext_ref(
                                    sp_rcontext_addr(rh, spv->offset),
                                    &sp_rcontext_handler_statement),
-                                 stmt);
+                                 stmt) : 
+                      new (thd->mem_root) sp_instr_copen_by_ref_dyn(
+                                 sphead->instructions(), spcont,
+                                 sp_rcontext_ref(
+                                   sp_rcontext_addr(rh, spv->offset),
+                                   &sp_rcontext_handler_statement),
+                                 new (thd->mem_root) sp_lex_cursor(thd,
+                                                                   thd->lex,
+                                                                   tmp_var));
   return i == NULL || sphead->add_instr(i);
 }
+
+
+/*
+  Create a temporary variable for a dynamic cursor.
+
+  i.e.
+    DECLARE v SYS_REFCURSOR;
+    OPEN v FROM CONCAT('SELECT * FROM ', f1());
+
+    where f1() is a stored function that returns a string.
+
+  The temporary variable is used to store the evaluated expression
+  result to be used in the OPEN statement, essentially splitting the instruction
+  into two:
+    1. Evaluate the expression and store it in the temporary variable
+    2. OPEN the cursor using the temporary variable
+
+  We do it this way so that we can use stored functions in the expression - 
+  open_and_process_routine will not be called yet before
+  sp_lex_instr::parse_expr call in sp_lex_keeper::validate_lex_and_exec_core.
+  With a temporary variable, we can evaluate the expression in a separate
+  instruction before the OPEN statement.
+  
+  @param thd         - Current thd
+  @param dflt_value  - The value to assign to the temporary variable.
+                       
+*/
+Item *LEX::sp_create_tmp_var_for_cursor(THD *thd, Item *dflt_value)
+{
+  DBUG_ASSERT(dflt_value != NULL);
+
+  LEX_CSTRING tmp_name= {STRING_WITH_LEN("tmp_rval")};
+  sp_variable *spv= spcont->add_variable(thd, &tmp_name);
+  if (unlikely(spv == NULL))
+    return NULL;
+
+  spcont->declare_var_boundary(1);
+  init_last_field(&spv->field_def, &spv->name);
+
+  Lex_field_type_st type;
+  type.set(&type_handler_string);
+  if (map_data_type(Lex_ident_sys(), &type))
+    return NULL;
+
+  DBUG_ASSERT(thd->variables.sql_mode & MODE_ORACLE);
+  if (unlikely(last_field->set_attributes(thd, type,
+                                          COLUMN_DEFINITION_TEMP)))
+    return NULL;
+
+  if (unlikely(last_field->type_handler()->
+                    sp_variable_declarations_finalize(thd,
+                                                      this,
+                                                      1,
+                                                      *last_field)))
+    return NULL;
+  
+  if (unlikely(sp_variable_declarations_set_default(thd, 1,
+                                                    dflt_value, Lex_cstring())))
+    return NULL;
+  
+  spcont->declare_var_boundary(0);
+
+  // Create a new Item_splocal for the cursor variable
+  auto item=
+    new (thd->mem_root) Item_splocal(thd, &sp_rcontext_handler_local,
+                                     &spv->name, spv->offset,
+                                     spv->type_handler());
+  if (unlikely(item == NULL))
+    return NULL;
+
+#ifdef DBUG_ASSERT_EXISTS
+  item->m_sp= sphead;
+#endif
+  return item;
+}
+
 
 
 /*

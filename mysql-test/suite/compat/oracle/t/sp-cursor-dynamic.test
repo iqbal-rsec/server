@@ -1,0 +1,376 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-33830 Dynamic SQL for sys_refcursor
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(v INT) RETURN TEXT
+AS
+BEGIN
+  RETURN 'SELECT ' || v;
+END;
+$$
+CREATE OR REPLACE FUNCTION f3() RETURN INT
+AS
+BEGIN
+  RETURN 11;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dynamic query stored in SP-variable
+--echo #
+DELIMITER $$;
+DECLARE
+  c0 sys_refcursor;
+  q VARCHAR2(64):= 'SELECT 10';
+  v INTEGER;
+BEGIN
+  OPEN c0 FOR q;
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dynamic query in string literal
+--echo #
+DELIMITER $$;
+DECLARE
+  c0 sys_refcursor;
+  v INTEGER;
+BEGIN
+  OPEN c0 FOR 'SELECT 10';
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Dynamic query from expression
+--echo #
+DELIMITER $$;
+DECLARE
+  c0 sys_refcursor;
+  v INTEGER;
+  q VARCHAR2(64):= 'SELECT 10';
+BEGIN
+  OPEN c0 FOR CONCAT(q, ' + 10');
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Dynamic query using TABLE
+--echo #
+DELIMITER $$;
+DECLARE
+  c0 sys_refcursor;
+  v INTEGER;
+  q VARCHAR2(64):= 'SELECT a FROM t1';
+BEGIN
+  OPEN c0 FOR q;
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Dynamic query re-OPEN after CLOSE
+--echo #
+DELIMITER $$;
+DECLARE
+  c0 sys_refcursor;
+  v INTEGER;
+  q1 VARCHAR2(64):= 'SELECT a FROM t1';
+  q2 VARCHAR2(64):= 'SELECT a + 1 FROM t1';
+BEGIN
+  OPEN c0 FOR q1;
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+
+  OPEN c0 FOR q2;
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dynamic query with parsing error
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  c0 sys_refcursor;
+  v INTEGER;
+  q VARCHAR2(64):= 'xxx';
+BEGIN
+  OPEN c0 FOR q;
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dynamic query with NULL
+--echo #
+DELIMITER $$;
+--error ER_INVALID_USE_OF_NULL
+DECLARE
+  c0 sys_refcursor;
+  v INTEGER;
+  q VARCHAR2(64):= NULL;
+BEGIN
+  OPEN c0 FOR q;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dynamic query from FUNCTION return value
+--echo #
+DELIMITER $$;
+DECLARE
+  c0 sys_refcursor;
+  v INTEGER;
+BEGIN
+  OPEN c0 FOR f1(10);
+
+  FETCH c0 INTO v;
+  SELECT v;
+
+  CLOSE c0;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dynamic query from FUNCTION return value with non-TEXT return type
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  c0 sys_refcursor;
+BEGIN
+  OPEN c0 FOR f3();
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dynamic query in stored FUNCTION
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f2(a INT) RETURN INTEGER
+AS
+  c0 sys_refcursor;
+  v INTEGER;
+BEGIN
+  OPEN c0 FOR CONCAT('SELECT a FROM t1 WHERE a = ', a);
+  FETCH c0 INTO v;
+  CLOSE c0;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+
+SELECT f2(1) AS v1;
+
+DROP FUNCTION f2;
+
+--echo #
+--echo # Dynamic query in stored FUNCTION
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f2(a INT) RETURN INTEGER
+AS
+  c0 sys_refcursor;
+  v INTEGER;
+BEGIN
+  OPEN c0 FOR CONCAT('SELECT 10 * ', a, ' + SUM(a) FROM t1');
+  FETCH c0 INTO v;
+  CLOSE c0;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+
+SELECT f2(1) AS v1, f2(2) AS v2;
+
+--echo #
+--echo # NULL dynamic query in stored FUNCTION
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f2(a INT) RETURN INTEGER
+AS
+  c0 sys_refcursor;
+BEGIN
+  OPEN c0 FOR NULL;
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_INVALID_USE_OF_NULL
+SELECT f2(1) AS v1, f2(2) AS v2;
+
+--echo #
+--echo # Two cursors with dynamic query in stored FUNCTION
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f2(a INT) RETURN INTEGER
+AS
+  c0, c1 sys_refcursor;
+  v0, v1 INTEGER;
+BEGIN
+  OPEN c0 FOR CONCAT('SELECT t1.a FROM t1 WHERE t1.a = ', a);
+  FETCH c0 INTO v0;
+  
+  OPEN c1 FOR CONCAT('SELECT t1.a FROM t1 WHERE t1.a = ', a + 1);
+  FETCH c1 INTO v1;
+
+  CLOSE c0;
+  CLOSE c1;
+
+  RETURN v0 + v1;
+END;
+$$
+DELIMITER ;$$
+
+SELECT f2(1) AS v1, f2(2) AS v2;
+
+--echo #
+--echo # Dynamic query in stored FUNCTION calling a stored FUNCTION
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f2(a INT) RETURN TEXT
+AS
+  c0 sys_refcursor;
+  v TEXT;
+BEGIN
+  OPEN c0 FOR f1(a);
+  FETCH c0 INTO v;
+  CLOSE c0;
+  RETURN v;
+END;
+$$
+DELIMITER ;$$
+SELECT f2(1) AS v1, f2(2) AS v2;
+
+SHOW FUNCTION CODE f2;
+
+DROP FUNCTION f2;
+
+--echo #
+--echo # Dynamic query in stored PROCEDURE
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(a INT)
+AS
+  c0 sys_refcursor;
+  v INTEGER;
+BEGIN
+  OPEN c0 FOR CONCAT('SELECT a FROM t1 WHERE a = ', a);
+  FETCH c0 INTO v;
+  CLOSE c0;
+  SELECT v;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1(1);
+
+SHOW PROCEDURE CODE p1;
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Dynamic query in PACKAGE
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg1 AS
+  FUNCTION f1(a INT) RETURN INTEGER;
+  PROCEDURE p1(a INT);
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1 AS
+  FUNCTION f1(a INT) RETURN INTEGER IS
+    c0 sys_refcursor;
+    v INTEGER;
+  BEGIN
+    OPEN c0 FOR CONCAT('SELECT a FROM t1 WHERE a = ', a);
+    FETCH c0 INTO v;
+    CLOSE c0;
+    RETURN v;
+  END;
+
+  PROCEDURE p1(a INT) IS
+    c0 sys_refcursor;
+    v INTEGER;
+  BEGIN
+    OPEN c0 FOR CONCAT('SELECT a FROM t1 WHERE a = ', a);
+    FETCH c0 INTO v;
+    CLOSE c0;
+    SELECT v;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT pkg1.f1(1) AS v1, pkg1.f1(2) AS v2;
+CALL pkg1.p1(1);
+
+DROP PACKAGE pkg1;
+
+DROP FUNCTION f1;
+DROP FUNCTION f3;
+DROP TABLE t1;
+
+SET sql_mode=DEFAULT;
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+  DECLARE c0 sys_refcursor;
+  OPEN c0 FOR 'SELECT 10';
+END;
+$$
+DELIMITER ;$$

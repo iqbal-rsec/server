@@ -1582,6 +1582,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         json_default_literal
         set_expr_misc
 
+%ifdef ORACLE
+%type <item>
+        select_or_expr
+%endif
+
 %type <num> opt_vers_auto_part
 
 %type <item_param> param_marker
@@ -1616,6 +1621,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
         sp_cursor_stmt
+
+%ifdef ORACLE
+%type <sp_cursor_stmt>
+        sp_cursor_stmt_or_expr
+%endif
 
 %type <instr_fetch_cursor>
         sp_proc_stmt_fetch_head
@@ -4418,13 +4428,63 @@ sp_proc_stmt_with_cursor:
        | sp_proc_stmt_close
        ;
 
+%ifdef ORACLE
+select_or_expr:
+          select { $$= nullptr; }
+        | column_default_non_parenthesized_expr
+        ;
+
+sp_cursor_stmt_or_expr:
+          sp_cursor_stmt_lex
+          {
+            DBUG_ASSERT(thd->free_list == NULL);
+            Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
+          }
+          remember_name select_or_expr remember_end
+          {
+            DBUG_ASSERT(Lex == $1);
+            if ($4)
+            {
+              Item *temp_sp= Lex->sp_create_tmp_var_for_cursor(thd, $4);
+              if (unlikely(!temp_sp))
+                MYSQL_YYABORT;
+
+              $1->set_item(temp_sp);
+            }
+
+            Lex->pop_select(); //main select
+            if (unlikely($1->stmt_finalize(thd)))
+              MYSQL_YYABORT;
+	          if (Lex->is_metadata_used())
+            {
+              LEX_CSTRING expr_str= make_string(thd, $3, $5);
+
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+              $1->set_expr_str(expr_str);
+            }
+            if (unlikely($1->sphead->restore_lex(thd)))
+              MYSQL_YYABORT;
+
+            $$= $1;
+          }
+        ;
+%endif
+
 sp_proc_stmt_open:
           OPEN_SYM ident opt_parenthesized_cursor_actual_parameters
           {
             if (unlikely(Lex->sp_open_cursor(thd, &$2, $3)))
               MYSQL_YYABORT;
           }
-        | OPEN_SYM ident FOR_SYM sp_cursor_stmt
+        | OPEN_SYM ident FOR_SYM
+%ifdef ORACLE
+          sp_cursor_stmt_or_expr
+%else
+          sp_cursor_stmt
+%endif
           {
             if (Lex->sp_open_cursor_for_stmt(thd, &$2, $4))
               MYSQL_YYABORT;

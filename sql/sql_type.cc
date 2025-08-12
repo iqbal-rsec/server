@@ -2818,6 +2818,7 @@ Type_handler_string::Column_definition_set_attributes(
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
   case COLUMN_DEFINITION_FUNCTION_RETURN:
+  case COLUMN_DEFINITION_TEMP:
     if (thd->variables.sql_mode & MODE_ORACLE)
     {
       // See Type_handler_varchar::Column_definition_set_attributes()
@@ -2849,6 +2850,7 @@ Type_handler_varchar::Column_definition_set_attributes(
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
   case COLUMN_DEFINITION_FUNCTION_RETURN:
+  case COLUMN_DEFINITION_TEMP:
     if (thd->variables.sql_mode & MODE_ORACLE)
     {
       /*

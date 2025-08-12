@@ -2545,6 +2545,67 @@ sp_instr_copen_by_ref::print(String *str)
 }
 
 
+int sp_instr_copen_by_ref_dyn::execute(THD *thd, uint *nextp)
+{
+  auto lex= (const_cast<LEX *>(m_lex_keeper.lex()))->get_lex_for_cursor();
+  Item *it= lex->get_item();
+  int res;
+
+  it= thd->sp_prepare_func_item(&it, 1);
+  if (! it || it->check_type_can_return_str({STRING_WITH_LEN("OPEN")}))
+  {
+    res= -1;
+  }
+  else
+  {
+    StringBuffer<STRING_BUFFER_USUAL_SIZE>
+      buffer(thd->variables.character_set_client);
+    String *str= it->val_str(&buffer);
+    if (!str)
+    {
+      my_error(ER_INVALID_USE_OF_NULL, MYF(0));
+      return true;
+    }
+    if (str != &buffer)
+      buffer.copy(*str);
+
+    m_cursor_stmt= Lex_cstring(buffer.ptr(), buffer.length());
+
+    LEX *old_lex= thd->lex;
+    thd->lex= lex;
+    
+    lex->needs_reprepare= true;
+    res= sp_instr_copen_by_ref::execute(thd, nextp);
+
+    thd->lex= old_lex;
+  }
+
+  return res;
+}
+
+
+void
+sp_instr_copen_by_ref_dyn::print(String *str)
+{
+  static constexpr LEX_CSTRING instr{STRING_WITH_LEN("copen")};
+  print_cmd_and_array_element(str, instr,
+                              m_deref_rcontext_handler->get_name_prefix()[0],
+                              cursor_str, m_offset);
+  
+  
+
+  auto lex= (const_cast<LEX *>(m_lex_keeper.lex()))->get_lex_for_cursor();
+  auto item= lex->get_item();
+
+  String expr_str;
+  item->print(&expr_str, enum_query_type(QT_ORDINARY |
+                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));
+  str->realloc(str->length() + expr_str.length() + 1);
+  str->qs_append(' ');
+  str->qs_append(expr_str.ptr(), expr_str.length());
+}
+
+
 /*
   sp_instr_cclose_by_ref class functions
 */

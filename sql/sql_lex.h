@@ -4031,6 +4031,7 @@ public:
                       List<sp_assignment_lex> *parameters);
   bool sp_open_cursor_for_stmt(THD *thd, const LEX_CSTRING *name,
                                sp_lex_cursor *stmt);
+  Item *sp_create_tmp_var_for_cursor(THD *thd, Item *dflt_value);
   bool sp_close(THD *thd, const Lex_ident_sys_st &name);
 
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
